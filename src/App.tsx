@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, type FC, type ReactNode } from 'react';
 import {
     FileDown, Code, Bold, Italic, Link, List, ListOrdered, Heading,
-    ImageIcon, Table, Quote, Code2, Strikethrough, Copy,
-    Undo, Redo, Search, Minimize, Maximize, Moon, Sun, FileText, Upload, MoreHorizontal, X
+    Table, Quote, Code2, Strikethrough, Copy,
+    Undo, Redo, Search, Minimize, Maximize, Moon, Sun, FileText, Upload, MoreHorizontal
 } from 'lucide-react';
-import Editor from '@monaco-editor/react';
+import Editor, { type Monaco } from '@monaco-editor/react';
+import { editor } from 'monaco-editor';
 import { marked } from 'marked';
+import { markedHighlight } from "marked-highlight"
 import DOMPurify from 'dompurify';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import hljs from 'highlight.js';
@@ -13,25 +15,28 @@ import 'highlight.js/styles/github-dark.css';
 import { useMeasure } from 'react-use';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// --- TYPE DEFINITIONS ---
+type Editor = editor.IStandaloneCodeEditor;
+type MonacoInstance = Monaco;
+type ToolbarActionParams = { prefix?: string; suffix?: string; type: string; };
+
+
 // --- SYNTAX HIGHLIGHTING SETUP ---
-marked.setOptions({
-    highlight: function(code, lang) {
-        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-        return hljs.highlight(code, { language }).value;
-    },
-    langPrefix: 'hljs language-',
-    gfm: true,
-    breaks: true,
-});
+marked.use(markedHighlight({
+  highlight(code, lang) {
+    const language = hljs.getLanguage(lang) ? lang : "plaintext"
+    return hljs.highlight(code, { language }).value
+  }
+}))
 
 // --- README TEMPLATES ---
-const TEMPLATES = {
-    professional: `# Project Title\n\n[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md) [![Build Status](https://img.shields.io/travis/com/user/repo.svg)](https://travis-ci.com/user/repo)\n\n## Description\n\nA detailed and compelling description of your project. Explain what problem it solves and why it's a valuable tool.\n\n## Features\n\n- ✨ Feature A: Solves a complex problem\n- 🚀 Feature B: Blazing fast performance\n- 🎨 Feature C: Beautifully designed UI\n\n## Tech Stack\n\n**Client:** React, TailwindCSS\n\n**Server:** Node, Express\n\n## Run Locally\n\nClone the project\n\n\`\`\`bash\n  git clone https://link-to-project\n\`\`\`\n\nGo to the project directory\n\n\`\`\`bash\n  cd my-project\n\`\`\`\n\nInstall dependencies\n\n\`\`\`bash\n  npm install\n\`\`\`\n\nStart the server\n\n\`\`\`bash\n  npm run start\n\`\`\`\n\n## Contributing\n\nContributions are always welcome! Please see \`contributing.md\` for ways to get started.`,
+const TEMPLATES: { [key: string]: string } = {
+    professional: `# Project Title\n\n[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md) [![Build Status](https://img.shields.io/travis/com/user/repo.svg)](https://travis-ci.com/user/repo)\n\n## Description\n\nA detailed and compelling description of your project. Explain what it solves and why it's a valuable tool.\n\n## Features\n\n- ✨ Feature A: Solves a complex problem\n- 🚀 Feature B: Blazing fast performance\n- 🎨 Feature C: Beautifully designed UI\n\n## Tech Stack\n\n**Client:** React, TailwindCSS\n\n**Server:** Node, Express\n\n## Run Locally\n\nClone the project\n\n\`\`\`bash\n  git clone https://link-to-project\n\`\`\`\n\nGo to the project directory\n\n\`\`\`bash\n  cd my-project\n\`\`\`\n\nInstall dependencies\n\n\`\`\`bash\n  npm install\n\`\`\`\n\nStart the server\n\n\`\`\`bash\n  npm run start\n\`\`\`\n\n## Contributing\n\nContributions are always welcome! Please see \`contributing.md\` for ways to get started.`,
     profile: `# Hi, I'm [Your Name]! 👋\n\n## 🚀 About Me\nI'm a full stack developer, passionate about building accessible and user-friendly web applications.\n\n## 🛠️ Skills\nJavascript, React, Node.js, Python, ...\n\n## 🌱 I’m currently learning...\nExciting things about WebAssembly!\n\n## 🔗 Links\n[![linkedin](https://img.shields.io/badge/linkedin-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/your-profile/)\n[![twitter](https://img.shields.io/badge/twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/your-handle)`,
 };
 
 // --- HELPER & UTILITY FUNCTIONS ---
-const formatText = (editor, { prefix = '', suffix = '', type }) => {
+const formatText = (editor: Editor | null, { prefix = '', suffix = '', type }: ToolbarActionParams) => {
     if (!editor) return;
     const model = editor.getModel();
     const selection = editor.getSelection();
@@ -39,7 +44,7 @@ const formatText = (editor, { prefix = '', suffix = '', type }) => {
 
     if ((type === 'ul' || type === 'ol') && selection.startLineNumber !== selection.endLineNumber) {
         const { startLineNumber, endLineNumber } = selection;
-        let edits = [];
+        const edits = [];
         for (let i = startLineNumber; i <= endLineNumber; i++) {
             edits.push({
                 range: { startLineNumber: i, startColumn: 1, endLineNumber: i, endColumn: 1 },
@@ -59,7 +64,7 @@ const formatText = (editor, { prefix = '', suffix = '', type }) => {
         return;
     }
     
-    let textToWrap;
+    let textToWrap: string;
     let editRange;
 
     if (selection.isEmpty()) {
@@ -93,7 +98,7 @@ const formatText = (editor, { prefix = '', suffix = '', type }) => {
     editor.focus();
 };
 
-const insertTableMarkdown = (editor, { rows, cols }) => {
+const insertTableMarkdown = (editor: Editor | null, { rows, cols }: { rows: number, cols: number }) => {
     if (!editor) return;
     const header = '| ' + Array(cols).fill('Header').join(' | ') + ' |';
     const separator = '| ' + Array(cols).fill('---').join(' | ') + ' |';
@@ -105,7 +110,7 @@ const insertTableMarkdown = (editor, { rows, cols }) => {
 };
 
 // --- CHILD COMPONENTS ---
-const Toast = ({ message, show }) => (
+const Toast: FC<{ message: string, show: boolean }> = ({ message, show }) => (
     <AnimatePresence>
         {show && (
             <motion.div
@@ -120,8 +125,7 @@ const Toast = ({ message, show }) => (
     </AnimatePresence>
 );
 
-// --- FIX: Themed Table Modal ---
-const TableModal = ({ isOpen, onClose, onInsert }) => {
+const TableModal: FC<{ isOpen: boolean; onClose: () => void; onInsert: ({ rows, cols }: { rows: number; cols: number }) => void }> = ({ isOpen, onClose, onInsert }) => {
     const [rows, setRows] = useState(2);
     const [cols, setCols] = useState(3);
     if (!isOpen) return null;
@@ -148,8 +152,12 @@ const TableModal = ({ isOpen, onClose, onInsert }) => {
     );
 };
 
-// --- FIX: Redesigned Command Palette (Grid Modal) ---
-const CommandPalette = ({ isOpen, onClose, commands }) => {
+interface Command {
+    name: string;
+    action: () => void;
+    icon: ReactNode;
+}
+const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Command[] }> = ({ isOpen, onClose, commands }) => {
     const [search, setSearch] = useState('');
     const filteredCommands = useMemo(() =>
         commands.filter(cmd => cmd.name.toLowerCase().includes(search.toLowerCase())),
@@ -207,7 +215,7 @@ const CommandPalette = ({ isOpen, onClose, commands }) => {
     );
 };
 
-const HoverDropdownMenu = ({ triggerIcon, label, children }) => {
+const HoverDropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode }> = ({ triggerIcon, label, children }) => {
     const [isOpen, setIsOpen] = useState(false);
     return (
         <div 
@@ -234,24 +242,34 @@ const HoverDropdownMenu = ({ triggerIcon, label, children }) => {
     );
 };
 
+interface ToolbarItem {
+    id: string;
+    type: 'button' | 'divider' | 'dropdown';
+    label?: string;
+    icon?: ReactNode;
+    action?: () => void;
+    items?: { label: string; action: () => void }[];
+}
+
+
 // --- MAIN APP COMPONENT ---
-const App = () => {
-    const [markdown, setMarkdown] = useState(() => localStorage.getItem('readme-editor-content') || TEMPLATES.professional);
-    const [theme, setTheme] = useState(() => localStorage.getItem('readme-editor-theme') || 'light');
-    const [isZenMode, setIsZenMode] = useState(false);
-    const [isTableModalOpen, setTableModalOpen] = useState(false);
-    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-    const [toast, setToast] = useState({ show: false, message: '' });
+const App: FC = () => {
+    const [markdown, setMarkdown] = useState<string>(() => localStorage.getItem('readme-editor-content') || TEMPLATES.professional);
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('readme-editor-theme') as 'light' | 'dark') || 'light');
+    const [isZenMode, setIsZenMode] = useState<boolean>(false);
+    const [isTableModalOpen, setTableModalOpen] = useState<boolean>(false);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+    const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
-    const editorRef = useRef(null);
-    const monacoRef = useRef(null);
-    const previewRef = useRef(null);
-    const openFileInputRef = useRef(null);
-    const imageInputRef = useRef(null);
-    const decorationsRef = useRef([]);
+    const editorRef = useRef<Editor | null>(null);
+    const monacoRef = useRef<MonacoInstance | null>(null);
+    const previewRef = useRef<HTMLDivElement | null>(null);
+    const openFileInputRef = useRef<HTMLInputElement | null>(null);
+    const imageInputRef = useRef<HTMLInputElement | null>(null);
+    const decorationsRef = useRef<string[]>([]);
 
-    const [toolbarRef, { width: toolbarWidth }] = useMeasure();
-    const isScrolling = useRef(false);
+    const [toolbarRef, { width: toolbarWidth }] = useMeasure<HTMLDivElement>();
+    const isScrolling = useRef<boolean>(false);
 
     const stats = useMemo(() => {
         const lines = markdown.split('\n');
@@ -266,12 +284,16 @@ const App = () => {
     }, [theme]);
 
     useEffect(() => {
+    const renderMarkdown = async () => {
         if (previewRef.current) {
-            previewRef.current.innerHTML = DOMPurify.sanitize(marked.parse(markdown));
+            // Await the parsed markdown before sanitizing
+            const parsed = await marked.parse(markdown);
+            previewRef.current.innerHTML = DOMPurify.sanitize(parsed);
         }
-    }, [markdown]);
+    };
+    renderMarkdown();
+}, [markdown]);
     
-    // --- FIX: Image Placeholder Logic ---
     useEffect(() => {
         if (!editorRef.current || !monacoRef.current) return;
 
@@ -282,7 +304,7 @@ const App = () => {
 
         const imageRegex = /(!\[(.*?)\]\()(data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+))(\))/g;
         const text = model.getValue();
-        const newDecorations = [];
+        const newDecorations: editor.IModelDeltaDecoration[] = [];
         let match;
 
         while ((match = imageRegex.exec(text)) !== null) {
@@ -308,7 +330,7 @@ const App = () => {
     }, [markdown, theme]);
     
     useEffect(() => {
-        const handleKeyDown = (e) => {
+        const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault();
                 setIsCommandPaletteOpen(p => !p);
@@ -327,7 +349,7 @@ const App = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isZenMode, isCommandPaletteOpen]);
     
-    const showToast = (message) => {
+    const showToast = (message: string) => {
         setToast({ show: true, message });
         setTimeout(() => setToast({ show: false, message: '' }), 2500);
     };
@@ -349,31 +371,31 @@ const App = () => {
         navigator.clipboard.writeText(markdown).then(() => showToast("Markdown copied!"));
     };
 
-    const handleOpenFile = (event) => {
+    const handleOpenFile = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (e) => setMarkdown(e.target.result);
+            reader.onload = (e) => setMarkdown(e.target?.result as string);
             reader.readAsText(file);
         }
     };
     
-    const handleImageUpload = (file) => {
+    const handleImageUpload = (file: File | undefined) => {
         if (!file?.type.startsWith('image/')) return;
         const reader = new FileReader();
         reader.onload = (e) => {
             const base64Image = e.target?.result;
-            if (typeof base64Image !== 'string') return;
+            if (typeof base64Image !== 'string' || !editorRef.current) return;
             const textToInsert = `![${file.name}](${base64Image})`;
             const selection = editorRef.current.getSelection();
             if (selection) {
-                editorRef.current?.executeEdits('image-upload', [{ range: selection, text: textToInsert }]);
+                editorRef.current.executeEdits('image-upload', [{ range: selection, text: textToInsert }]);
             }
         };
         reader.readAsDataURL(file);
     };
 
-    const handleEditorDidMount = (editor, monaco) => {
+    const handleEditorDidMount = (editor: Editor, monaco: MonacoInstance) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
         editor.onDidScrollChange(e => {
@@ -394,21 +416,21 @@ const App = () => {
     const toolbarActions = {
         undo: () => editorRef.current?.trigger('toolbar', 'undo', null),
         redo: () => editorRef.current?.trigger('toolbar', 'redo', null),
-        heading: (level) => formatText(editorRef.current, { prefix: `${'#'.repeat(level)} `, type: 'heading' }),
-        bold: () => formatText(editorRef.current, { prefix: '**', suffix: '**' }),
-        italic: () => formatText(editorRef.current, { prefix: '*', suffix: '*' }),
-        strikethrough: () => formatText(editorRef.current, { prefix: '~~', suffix: '~~' }),
-        link: () => formatText(editorRef.current, { prefix: '[', suffix: '](url)' }),
+        heading: (level: number) => formatText(editorRef.current, { prefix: `${'#'.repeat(level)} `, type: 'heading' }),
+        bold: () => formatText(editorRef.current, { prefix: '**', suffix: '**', type: 'bold' }),
+        italic: () => formatText(editorRef.current, { prefix: '*', suffix: '*', type: 'italic' }),
+        strikethrough: () => formatText(editorRef.current, { prefix: '~~', suffix: '~~', type: 'strikethrough' }),
+        link: () => formatText(editorRef.current, { prefix: '[', suffix: '](url)', type: 'link' }),
         ul: () => formatText(editorRef.current, { prefix: '- ', type: 'ul' }),
         ol: () => formatText(editorRef.current, { prefix: '1. ', type: 'ol' }),
         quote: () => formatText(editorRef.current, { prefix: '> ', type: 'quote' }),
-        code: () => formatText(editorRef.current, { prefix: '```\n', suffix: '\n```' }),
+        code: () => formatText(editorRef.current, { prefix: '```\n', suffix: '\n```', type: 'code' }),
         image: () => imageInputRef.current?.click(),
         table: () => setTableModalOpen(true),
-        applyTemplate: (key) => setMarkdown(TEMPLATES[key]),
+        applyTemplate: (key: 'professional' | 'profile') => setMarkdown(TEMPLATES[key]),
     };
     
-    const toolbarItems = [
+    const toolbarItems: ToolbarItem[] = [
         { id: 'undo', type: 'button', label: 'Undo', icon: <Undo size={20} />, action: toolbarActions.undo },
         { id: 'redo', type: 'button', label: 'Redo', icon: <Redo size={20} />, action: toolbarActions.redo },
         { id: 'divider', type: 'divider' },
@@ -421,7 +443,6 @@ const App = () => {
         { id: 'ol', type: 'button', label: 'Ordered List', icon: <ListOrdered size={20} />, action: toolbarActions.ol },
         { id: 'quote', type: 'button', label: 'Blockquote', icon: <Quote size={20} />, action: toolbarActions.quote },
         { id: 'code', type: 'button', label: 'Code Block', icon: <Code2 size={20} />, action: toolbarActions.code },
-        // { id: 'image', type: 'button', label: 'Image', icon: <ImageIcon size={20} />, action: toolbarActions.image },
         { id: 'table', type: 'button', label: 'Table', icon: <Table size={20} />, action: toolbarActions.table },
         { id: 'template', type: 'dropdown', label: 'Templates', icon: <FileText size={20} />, items: [
             {label: 'Professional README', action: () => toolbarActions.applyTemplate('professional')},
@@ -429,9 +450,8 @@ const App = () => {
         ]}
     ];
     
-    const commands = [
+    const commands: Command[] = [
         { name: 'Open File', action: () => openFileInputRef.current?.click(), icon: <Upload size={28} /> },
-        // { name: 'Upload Image', action: toolbarActions.image, icon: <ImageIcon size={28} /> },
         { name: 'Insert Table', action: toolbarActions.table, icon: <Table size={28} /> },
         { name: 'Pro Template', action: () => toolbarActions.applyTemplate('professional'), icon: <FileText size={28} /> },
         { name: 'Profile Template', action: () => toolbarActions.applyTemplate('profile'), icon: <FileText size={28} /> },
@@ -504,8 +524,8 @@ const App = () => {
                                 {visibleToolbarItems.map(item => {
                                     if (item.type === 'divider') return <div key={item.id} className="border-l h-6 border-gray-300 dark:border-gray-600 mx-1"></div>;
                                     if (item.type === 'dropdown') return (
-                                        <HoverDropdownMenu key={item.id} triggerIcon={item.icon} label={item.label}>
-                                            {item.items.map(sub => <button key={sub.label} onClick={sub.action} className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">{sub.label}</button>)}
+                                        <HoverDropdownMenu key={item.id} triggerIcon={item.icon} label={item.label!}>
+                                            {item.items?.map(sub => <button key={sub.label} onClick={sub.action} className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">{sub.label}</button>)}
                                         </HoverDropdownMenu>
                                     );
                                     return <button key={item.id} onClick={item.action} title={item.label} className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">{item.icon}</button>;
@@ -552,7 +572,12 @@ const App = () => {
                     </Panel>
                     {!isZenMode && <PanelResizeHandle className="w-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-500" />}
                     {!isZenMode && <Panel defaultSize={50} minSize={20}>
-                        <div ref={previewRef} className="prose max-w-none p-8 h-full overflow-y-auto bg-white text-gray-800" />
+                        <div
+                            ref={previewRef}
+                            className="prose max-w-none p-8 h-full overflow-y-auto bg-white dark:bg-gray-800"
+                            role="region"
+                            aria-label="Markdown preview"
+                        />
                     </Panel>}
                 </PanelGroup>
             </main>
