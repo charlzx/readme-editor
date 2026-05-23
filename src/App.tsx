@@ -1,9 +1,11 @@
 import React, {
     useCallback,
     useEffect,
+    lazy,
     useMemo,
     useRef,
     useState,
+    Suspense,
     type FC,
     type ReactNode,
 } from 'react';
@@ -42,7 +44,7 @@ import {
     UploadSimpleIcon as Upload,
     XIcon as Close,
 } from '@phosphor-icons/react';
-import MonacoEditor, { type Monaco } from '@monaco-editor/react';
+import type { Monaco } from '@monaco-editor/react';
 import type { editor as MonacoEditorTypes } from 'monaco-editor';
 import { marked } from 'marked';
 import { markedHighlight } from 'marked-highlight';
@@ -56,6 +58,8 @@ type EditorInstance = MonacoEditorTypes.IStandaloneCodeEditor;
 type MonacoInstance = Monaco;
 type ToolbarActionParams = { prefix?: string; suffix?: string; type: string };
 type View = 'home' | 'editor';
+
+const MonacoEditor = lazy(() => import('@monaco-editor/react'));
 
 interface ReadmeProject {
     id: string;
@@ -154,6 +158,36 @@ const formatUpdatedAt = (value: string) => {
         hour: 'numeric',
         minute: '2-digit',
     }).format(date);
+};
+
+const formatRelativeTime = (value: string, now = Date.now()) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'recently';
+
+    const seconds = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+
+    return formatUpdatedAt(value);
+};
+
+const getDownloadFilename = (name: string) => {
+    const baseName = name
+        .trim()
+        .replace(/\.md$/i, '')
+        .replace(/[^a-z0-9._-]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+    return `${baseName || 'README'}.md`;
 };
 
 const getExcerpt = (markdown: string) => {
@@ -419,6 +453,9 @@ const App: FC = () => {
     const [isTableModalOpen, setTableModalOpen] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+    const [projectSearch, setProjectSearch] = useState('');
+    const [activeLine, setActiveLine] = useState(1);
+    const [clock, setClock] = useState(() => Date.now());
     const [pendingDeleteProject, setPendingDeleteProject] = useState<ReadmeProject | null>(null);
     const [toast, setToast] = useState({ show: false, message: '' });
 
@@ -444,9 +481,25 @@ const App: FC = () => {
 
     const outline = useMemo(() => getReadmeOutline(markdown), [markdown]);
 
+    const activeOutlineId = useMemo(() => {
+        let activeItem: OutlineItem | null = null;
+        for (const item of outline) {
+            if (item.lineNumber <= activeLine) activeItem = item;
+            if (item.lineNumber > activeLine) break;
+        }
+        return activeItem?.id ?? null;
+    }, [activeLine, outline]);
+
+    const savedLabel = activeProject ? formatRelativeTime(activeProject.updatedAt, clock) : 'recently';
+
     useEffect(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
     }, [projects]);
+
+    useEffect(() => {
+        const interval = window.setInterval(() => setClock(Date.now()), 15000);
+        return () => window.clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (activeProjectId) {
@@ -577,7 +630,7 @@ const App: FC = () => {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = activeProject.name.toLowerCase().includes('readme') ? `${activeProject.name}.md` : 'README.md';
+        anchor.download = getDownloadFilename(activeProject.name);
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -623,8 +676,11 @@ const App: FC = () => {
     const handleEditorDidMount = (editor: EditorInstance, monaco: MonacoInstance) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        setActiveLine(editor.getPosition()?.lineNumber ?? 1);
+        editor.onDidChangeCursorPosition(event => setActiveLine(event.position.lineNumber));
         editor.onDidScrollChange(event => {
             if (isScrolling.current || !event.scrollTopChanged) return;
+            setActiveLine(editor.getVisibleRanges()[0]?.startLineNumber ?? editor.getPosition()?.lineNumber ?? 1);
             const editorScrollHeight = editor.getScrollHeight();
             const editorVisibleHeight = editor.getLayoutInfo().height;
             if (editorScrollHeight <= editorVisibleHeight) return;
@@ -695,6 +751,15 @@ const App: FC = () => {
         [projects],
     );
 
+    const filteredProjects = useMemo(() => {
+        const query = projectSearch.trim().toLowerCase();
+        if (!query) return sortedProjects;
+        return sortedProjects.filter(project => (
+            project.name.toLowerCase().includes(query) ||
+            project.markdown.toLowerCase().includes(query)
+        ));
+    }, [projectSearch, sortedProjects]);
+
     return (
         <div className="min-h-screen bg-background font-sans text-foreground antialiased">
             <style>{`
@@ -756,12 +821,23 @@ const App: FC = () => {
                                 <div>
                                     <h2 className="text-base font-semibold">Projects</h2>
                                 </div>
-                                <span className="w-fit rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{projects.length} saved</span>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    <div className="relative">
+                                        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                        <input
+                                            value={projectSearch}
+                                            onChange={event => setProjectSearch(event.target.value)}
+                                            placeholder="Search projects..."
+                                            className="h-8 w-full rounded-md border border-input bg-card pl-8 pr-3 text-[13px] outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 sm:w-56"
+                                        />
+                                    </div>
+                                    <span className="w-fit rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{filteredProjects.length} of {projects.length}</span>
+                                </div>
                             </div>
 
-                            {sortedProjects.length > 0 ? (
+                            {projects.length > 0 ? (
                                 <div className="space-y-3">
-                                    {sortedProjects.map(project => (
+                                    {filteredProjects.map(project => (
                                         <article key={project.id} className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-4 text-card-foreground transition hover:border-muted-foreground/40 sm:flex-row sm:items-center">
                                             <button onClick={() => openProject(project.id)} className="flex min-w-0 flex-1 items-start gap-4 text-left">
                                                 <div className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-secondary-foreground">
@@ -790,6 +866,11 @@ const App: FC = () => {
                                             </div>
                                         </article>
                                     ))}
+                                    {filteredProjects.length === 0 && (
+                                        <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                                            No projects match “{projectSearch}”.
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
@@ -837,6 +918,7 @@ const App: FC = () => {
                                 </button>
                                 <button onClick={handleCopy} className="icon-btn" title="Copy markdown"><Copy size={17} /></button>
                                 <button onClick={handleDownload} className="btn btn-primary"><FileDown size={16} /> Download</button>
+                                <button onClick={() => requestDeleteProject(activeProject.id)} className="icon-btn text-destructive" title="Delete project"><Trash2 size={17} /></button>
                             </div>
                         </div>
                     </header>
@@ -901,7 +983,7 @@ const App: FC = () => {
                                                             <button
                                                                 key={item.id}
                                                                 onClick={() => jumpToOutlineItem(item)}
-                                                                className="block w-full truncate rounded-md py-1.5 pr-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                                                className={`block w-full truncate rounded-md py-1.5 pr-2 text-left text-sm hover:bg-accent hover:text-accent-foreground ${activeOutlineId === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
                                                                 style={{ paddingLeft: `${Math.min(item.level - 1, 4) * 12 + 8}px` }}
                                                                 title={item.text}
                                                             >
@@ -918,27 +1000,29 @@ const App: FC = () => {
                                         )}
                                     </AnimatePresence>
                                     <div className={`min-h-0 flex-1 overflow-hidden transition-[padding] ${isOutlineOpen ? 'pl-[22rem]' : 'pl-14'}`}>
-                                        <MonacoEditor
-                                            height="100%"
-                                            language="markdown"
-                                            theme={theme === 'light' ? 'light' : 'vs-dark'}
-                                            value={markdown}
-                                            onChange={value => updateActiveProject({ markdown: value || '' })}
-                                            onMount={handleEditorDidMount}
-                                            options={{
-                                                wordWrap: 'on',
-                                                minimap: { enabled: false },
-                                                fontSize: 14,
-                                                lineHeight: 22,
-                                                scrollBeyondLastLine: false,
-                                                automaticLayout: true,
-                                                padding: { top: 16, bottom: 16 },
-                                            }}
-                                        />
+                                        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}>
+                                            <MonacoEditor
+                                                height="100%"
+                                                language="markdown"
+                                                theme={theme === 'light' ? 'light' : 'vs-dark'}
+                                                value={markdown}
+                                                onChange={value => updateActiveProject({ markdown: value || '' })}
+                                                onMount={handleEditorDidMount}
+                                                options={{
+                                                    wordWrap: 'on',
+                                                    minimap: { enabled: false },
+                                                    fontSize: 14,
+                                                    lineHeight: 22,
+                                                    scrollBeyondLastLine: false,
+                                                    automaticLayout: true,
+                                                    padding: { top: 16, bottom: 16 },
+                                                }}
+                                            />
+                                        </Suspense>
                                     </div>
                                     {!isZenMode && (
                                         <div className="flex flex-shrink-0 items-center gap-4 border-t border-border bg-muted/50 px-4 py-1.5 pl-16 text-xs text-muted-foreground">
-                                            <span><Save size={13} className="mr-1 inline" /> Saved locally</span>
+                                            <span><Save size={13} className="mr-1 inline" /> Saved {savedLabel}</span>
                                             <span>Lines {stats.lines}</span>
                                             <span>Words {stats.words}</span>
                                             <span>Chars {stats.chars}</span>
