@@ -26,46 +26,46 @@
 
 :root {
   color-scheme: light;
-  --background: 42 34% 94%;
-  --foreground: 220 11% 13%;
-  --card: 42 38% 97%;
-  --card-foreground: 220 11% 13%;
-  --popover: 42 38% 97%;
-  --popover-foreground: 220 11% 13%;
-  --primary: 220 12% 14%;
-  --primary-foreground: 42 38% 94%;
-  --secondary: 39 28% 88%;
-  --secondary-foreground: 220 11% 13%;
-  --muted: 40 24% 89%;
-  --muted-foreground: 220 7% 38%;
-  --accent: 38 27% 84%;
-  --accent-foreground: 220 11% 13%;
+  --background: 0 0% 98%;
+  --foreground: 0 0% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 4%;
+  --primary: 0 0% 4%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 4%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 4%;
   --destructive: 0 66% 43%;
-  --border: 38 18% 76%;
-  --input: 38 18% 76%;
-  --ring: 220 12% 14%;
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 0 0% 4%;
 }
 
 .dark {
   color-scheme: dark;
-  --background: 220 12% 10%;
-  --foreground: 42 38% 92%;
-  --card: 220 11% 14%;
-  --card-foreground: 42 38% 92%;
-  --popover: 220 11% 14%;
-  --popover-foreground: 42 38% 92%;
-  --primary: 220 11% 16%;
-  --primary-foreground: 42 38% 92%;
-  --secondary: 42 34% 88%;
-  --secondary-foreground: 220 12% 12%;
-  --muted: 220 9% 19%;
-  --muted-foreground: 42 16% 72%;
-  --accent: 42 34% 88%;
-  --accent-foreground: 220 12% 12%;
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 93%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 0 0% 93%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 0 0% 16%;
+  --accent-foreground: 0 0% 93%;
   --destructive: 0 72% 58%;
-  --border: 220 8% 28%;
-  --input: 220 8% 28%;
-  --ring: 42 34% 88%;
+  --border: 0 0% 17%;
+  --input: 0 0% 17%;
+  --ring: 0 0% 93%;
 }
 
 * {
@@ -99,11 +99,11 @@ button {
   }
 
   .btn-primary {
-    @apply bg-primary text-primary-foreground shadow-sm hover:opacity-90;
+    @apply bg-primary text-primary-foreground hover:opacity-90;
   }
 
   .btn-secondary {
-    @apply border border-border bg-secondary text-secondary-foreground shadow-sm hover:bg-accent hover:text-accent-foreground;
+    @apply border border-border bg-card text-card-foreground hover:bg-accent hover:text-accent-foreground;
   }
 
   .btn-ghost {

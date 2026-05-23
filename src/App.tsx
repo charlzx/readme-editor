@@ -90,56 +90,7 @@ marked.use(markedHighlight({
     },
 }));
 
-const TEMPLATES: Record<'professional' | 'profile', string> = {
-    professional: `# Project Title
-
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md) [![Build Status](https://img.shields.io/travis/com/user/repo.svg)](https://travis-ci.com/user/repo)
-
-## Description
-
-A detailed and compelling description of your project. Explain what it solves and why it's a valuable tool.
-
-## Features
-
-- Fast editing with live preview
-- Local-first project storage
-- Export-ready Markdown
-
-## Tech Stack
-
-**Client:** React, TailwindCSS
-
-**Server:** Node, Express
-
-## Run Locally
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-## Contributing
-
-Contributions are always welcome.`,
-    profile: `# Hi, I'm [Your Name]!
-
-## About Me
-
-I'm a full stack developer, passionate about building accessible and user-friendly web applications.
-
-## Skills
-
-Javascript, React, Node.js, Python
-
-## Currently Learning
-
-Exciting things about WebAssembly.
-
-## Links
-
-[LinkedIn](https://www.linkedin.com/in/your-profile/)
-[Twitter](https://twitter.com/your-handle)`,
-};
+const DEFAULT_MARKDOWN = '';
 
 const createId = () => {
     if ('crypto' in window && typeof window.crypto.randomUUID === 'function') {
@@ -155,7 +106,7 @@ const inferProjectName = (markdown: string, fallback = 'Untitled README') => {
     return heading?.replace(/^#\s+/, '').trim() || fallback;
 };
 
-const createProject = (name = 'Untitled README', markdown = TEMPLATES.professional): ReadmeProject => {
+const createProject = (name = 'Untitled README', markdown = DEFAULT_MARKDOWN): ReadmeProject => {
     const timestamp = nowIso();
     return {
         id: createId(),
@@ -280,7 +231,7 @@ const Toast: FC<{ message: string; show: boolean }> = ({ message, show }) => (
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 16 }}
-                className="fixed bottom-5 right-5 z-[100] rounded-md border border-emerald-500/20 bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
+                className="fixed bottom-5 right-5 z-[100] rounded-md border border-border bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm"
             >
                 {message}
             </motion.div>
@@ -304,7 +255,7 @@ const TableModal: FC<{
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5 text-card-foreground shadow-xl" onClick={event => event.stopPropagation()}>
+            <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm" onClick={event => event.stopPropagation()}>
                 <h3 className="text-lg font-semibold">Insert table</h3>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                     <label className="space-y-2 text-sm font-medium">
@@ -324,6 +275,36 @@ const TableModal: FC<{
         </div>
     );
 };
+
+const ConfirmModal: FC<{
+    project: ReadmeProject | null;
+    onCancel: () => void;
+    onConfirm: () => void;
+}> = ({ project, onCancel, onConfirm }) => (
+    <AnimatePresence>
+        {project && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm" onClick={onCancel}>
+                <motion.div
+                    className="w-full max-w-sm rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm"
+                    onClick={event => event.stopPropagation()}
+                    initial={{ opacity: 0, scale: 0.98, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: 8 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                >
+                    <h3 className="text-base font-semibold">Delete project</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        This will remove <span className="font-medium text-foreground">{project.name}</span> from local storage.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button onClick={onCancel} className="btn btn-secondary">Cancel</button>
+                        <button onClick={onConfirm} className="btn bg-destructive text-white hover:opacity-90">Delete</button>
+                    </div>
+                </motion.div>
+            </div>
+        )}
+    </AnimatePresence>
+);
 
 const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Command[] }> = ({ isOpen, onClose, commands }) => {
     const [search, setSearch] = useState('');
@@ -348,7 +329,7 @@ const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Comma
                         exit={{ opacity: 0, scale: 0.98, y: 8 }}
                         transition={{ duration: 0.16, ease: 'easeOut' }}
                     >
-                        <div className="rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-2xl">
+                        <div className="rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm">
                             <div className="relative border-b border-border">
                                 <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                 <input
@@ -394,7 +375,7 @@ const HoverDropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: R
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
-                        className={`absolute z-50 min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg ${side === 'right' ? 'left-full top-0 ml-2' : 'left-0 top-full mt-2'}`}
+                        className={`absolute z-50 min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm ${side === 'right' ? 'left-full top-0 ml-2' : 'left-0 top-full mt-2'}`}
                     >
                         {children}
                     </motion.div>
@@ -407,11 +388,12 @@ const HoverDropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: R
 const App: FC = () => {
     const [projects, setProjects] = useState<ReadmeProject[]>(loadProjects);
     const [activeProjectId, setActiveProjectId] = useState<string | null>(() => localStorage.getItem(ACTIVE_PROJECT_KEY));
-    const [view, setView] = useState<View>(() => (localStorage.getItem(ACTIVE_PROJECT_KEY) ? 'editor' : 'home'));
+    const [view, setView] = useState<View>('home');
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem(THEME_KEY) as 'light' | 'dark') || 'light');
     const [isZenMode, setIsZenMode] = useState(false);
     const [isTableModalOpen, setTableModalOpen] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [pendingDeleteProject, setPendingDeleteProject] = useState<ReadmeProject | null>(null);
     const [toast, setToast] = useState({ show: false, message: '' });
 
     const editorRef = useRef<EditorInstance | null>(null);
@@ -532,21 +514,26 @@ const App: FC = () => {
     };
 
     const handleNewProject = () => {
-        const project = createProject('New README', TEMPLATES.professional);
+        const project = createProject('Untitled README');
         setProjects(current => [project, ...current]);
         setActiveProjectId(project.id);
         setView('editor');
         showToast('Project created');
     };
 
-    const handleDeleteProject = (projectId: string) => {
+    const requestDeleteProject = (projectId: string) => {
         const project = projects.find(item => item.id === projectId);
-        if (!project || !window.confirm(`Delete "${project.name}"?`)) return;
-        setProjects(current => current.filter(item => item.id !== projectId));
-        if (activeProjectId === projectId) {
+        if (project) setPendingDeleteProject(project);
+    };
+
+    const confirmDeleteProject = () => {
+        if (!pendingDeleteProject) return;
+        setProjects(current => current.filter(item => item.id !== pendingDeleteProject.id));
+        if (activeProjectId === pendingDeleteProject.id) {
             setActiveProjectId(null);
             setView('home');
         }
+        setPendingDeleteProject(null);
         showToast('Project deleted');
     };
 
@@ -698,51 +685,55 @@ const App: FC = () => {
             <input type="file" ref={imageInputRef} onChange={event => handleImageUpload(event.target.files?.[0])} className="hidden" accept="image/*" />
             <Toast message={toast.message} show={toast.show} />
             <TableModal isOpen={isTableModalOpen} onClose={() => setTableModalOpen(false)} onInsert={({ rows, cols }) => insertTableMarkdown(editorRef.current, { rows, cols })} />
+            <ConfirmModal project={pendingDeleteProject} onCancel={() => setPendingDeleteProject(null)} onConfirm={confirmDeleteProject} />
             <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
 
             {view === 'home' && (
-                <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 lg:px-8">
-                    <header className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="grid size-10 place-items-center rounded-md border border-border bg-card shadow-sm">
-                                <Code size={22} className="text-foreground" />
+                <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-10 lg:px-8 lg:pt-16">
+                    <header className="border-b border-border pb-8">
+                        <div className="flex flex-col items-center gap-6 text-center">
+                            <div className="grid size-11 place-items-center rounded-md border border-border bg-primary text-primary-foreground">
+                                <Code size={23} />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-semibold tracking-tight">README Editor</h1>
-                                <p className="text-sm text-muted-foreground">Local projects, fast Markdown, clean preview.</p>
+                                <h1 className="text-3xl font-semibold tracking-tight">README Editor</h1>
+                                <p className="mt-2 text-sm text-muted-foreground">Local projects, fast Markdown, clean preview.</p>
                             </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={() => openFileInputRef.current?.click()} className="btn btn-secondary">
-                                <Upload size={16} /> Open file
-                            </button>
-                            <button onClick={handleNewProject} className="btn btn-primary">
-                                <Plus size={16} /> New project
-                            </button>
-                            <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} className="icon-btn" title="Toggle theme">
-                                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button onClick={() => openFileInputRef.current?.click()} className="btn btn-secondary">
+                                    <Upload size={16} /> Import markdown
+                                </button>
+                                <button onClick={handleNewProject} className="btn btn-primary">
+                                    <Plus size={16} /> New blank README
+                                </button>
+                                <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} className="icon-btn" title="Toggle theme">
+                                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                                </button>
+                            </div>
                         </div>
                     </header>
 
                     <section className="py-8">
                         <div>
-                            <div className="mb-4 flex items-center justify-between">
-                                <h2 className="text-lg font-semibold">Projects</h2>
-                                <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{projects.length} saved</span>
+                            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                                <div>
+                                    <h2 className="text-base font-semibold">Projects</h2>
+                                    <p className="text-sm text-muted-foreground">Saved in this browser. Open one to continue editing.</p>
+                                </div>
+                                <span className="w-fit rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{projects.length} saved</span>
                             </div>
 
                             {sortedProjects.length > 0 ? (
                                 <div className="space-y-3">
                                     {sortedProjects.map(project => (
-                                        <article key={project.id} className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center">
+                                        <article key={project.id} className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-4 text-card-foreground transition hover:border-muted-foreground/40 sm:flex-row sm:items-center">
                                             <button onClick={() => openProject(project.id)} className="flex min-w-0 flex-1 items-start gap-4 text-left">
                                                 <div className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-secondary-foreground">
                                                     <FileText size={19} />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        <h3 className="truncate text-base font-semibold">{project.name}</h3>
+                                                        <h3 className="max-w-full truncate text-base font-semibold">{project.name}</h3>
                                                         <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
                                                             <Clock3 size={13} /> {formatUpdatedAt(project.updatedAt)}
                                                         </span>
@@ -757,7 +748,7 @@ const App: FC = () => {
                                                 <button onClick={() => handleDuplicateProject(project)} className="btn btn-ghost h-8 px-2.5 text-xs">
                                                     <Copy size={14} /> Duplicate
                                                 </button>
-                                                <button onClick={() => handleDeleteProject(project.id)} className="icon-btn size-8 text-destructive" title="Delete project">
+                                                <button onClick={() => requestDeleteProject(project.id)} className="icon-btn size-8 text-destructive" title="Delete project">
                                                     <Trash2 size={15} />
                                                 </button>
                                             </div>
@@ -770,10 +761,10 @@ const App: FC = () => {
                                         <FilePlus2 size={23} />
                                     </div>
                                     <h2 className="mt-4 text-lg font-semibold">No projects yet</h2>
-                                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">Create a README or import a Markdown file to keep it available in this browser.</p>
+                                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">Create a blank README or import a Markdown file to keep it available in this browser.</p>
                                     <div className="mt-5 flex justify-center gap-2">
                                         <button onClick={handleNewProject} className="btn btn-primary">
-                                            <Plus size={16} /> New project
+                                            <Plus size={16} /> New blank README
                                         </button>
                                     </div>
                                 </div>
@@ -818,7 +809,10 @@ const App: FC = () => {
                         <PanelGroup direction="horizontal">
                             <Panel defaultSize={50} minSize={isZenMode ? 100 : 24}>
                                 <div className="relative flex h-full flex-col bg-background">
-                                    <div className="absolute bottom-3 left-3 top-3 z-40 flex max-h-[calc(100%-1.5rem)] flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-lg backdrop-blur">
+                                    <div className="absolute bottom-3 left-3 top-3 z-40 flex max-h-[calc(100%-1.5rem)] flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur">
+                                        <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
+                                        <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
+                                        <div className="my-1 border-t border-border" />
                                         {toolbarItems.map(item => {
                                             if (item.type === 'divider') return <div key={item.id} className="my-1 border-t border-border" />;
                                             if (item.type === 'dropdown') {
@@ -834,8 +828,6 @@ const App: FC = () => {
                                         })}
                                         <div className="my-1 border-t border-border" />
                                         <button onClick={() => openFileInputRef.current?.click()} className="icon-btn" title="Open file"><Upload size={18} /></button>
-                                        <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
-                                        <button onClick={() => setIsZenMode(!isZenMode)} title="Toggle focus" className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
                                     </div>
                                     <div className="min-h-0 flex-1 overflow-hidden pl-14">
                                         <MonacoEditor
