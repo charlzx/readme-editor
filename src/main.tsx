@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 
 import React, { useEffect, useState } from "react"
+import { DeviceMobileSlashIcon, MonitorIcon } from "@phosphor-icons/react"
 
 const ScreenGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSmall, setIsSmall] = useState(false)
@@ -17,13 +18,19 @@ const ScreenGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   if (isSmall) {
     return (
-      <div className="flex items-center justify-center h-screen w-screen bg-gray-950 text-white">
-        <div className="bg-gray-900 rounded-2xl shadow-2xl p-8 max-w-md text-center">
-          <h1 className="text-2xl font-bold mb-2">Unsupported Device</h1>
-          <p className="text-gray-300">
-            This app works only on desktop and large screens.  
-            Please switch to a device with a larger display.
+      <div className="flex min-h-screen w-screen items-center justify-center bg-background px-5 text-foreground">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 text-center text-card-foreground">
+          <div className="mx-auto grid size-11 place-items-center rounded-md border border-border bg-secondary text-secondary-foreground">
+            <DeviceMobileSlashIcon size={22} />
+          </div>
+          <h1 className="mt-5 text-xl font-semibold tracking-tight">Desktop Required</h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+            README Editor uses a split editor, preview, and document outline that need more horizontal space.
           </p>
+          <div className="mt-5 inline-flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
+            <MonitorIcon size={15} />
+            Open on a tablet landscape, laptop, or desktop.
+          </div>
         </div>
       </div>
     )

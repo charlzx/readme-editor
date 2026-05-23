@@ -137,3 +137,22 @@ button {
   border-radius: 0.5rem;
   border: 1px solid hsl(var(--border));
 }
+
+.toolbar-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+  scrollbar-width: thin;
+}
+
+.toolbar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.toolbar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toolbar-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.45);
+  border-radius: 999px;
+}

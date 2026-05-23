@@ -25,6 +25,7 @@ import {
     ImageIcon as Image,
     LinkIcon as Link,
     ListBulletsIcon as List,
+    ListMagnifyingGlassIcon as Outline,
     ListNumbersIcon as ListOrdered,
     MagnifyingGlassIcon as Search,
     MoonIcon as Moon,
@@ -39,6 +40,7 @@ import {
     TextStrikethroughIcon as Strikethrough,
     TrashIcon as Trash2,
     UploadSimpleIcon as Upload,
+    XIcon as Close,
 } from '@phosphor-icons/react';
 import MonacoEditor, { type Monaco } from '@monaco-editor/react';
 import type { editor as MonacoEditorTypes } from 'monaco-editor';
@@ -76,6 +78,13 @@ interface ToolbarItem {
     icon?: ReactNode;
     action?: () => void;
     items?: { label: string; action: () => void }[];
+}
+
+interface OutlineItem {
+    id: string;
+    level: number;
+    text: string;
+    lineNumber: number;
 }
 
 const STORAGE_KEY = 'readme-editor-projects';
@@ -158,6 +167,22 @@ const getExcerpt = (markdown: string) => {
         .join(' ');
     return text || 'No content yet.';
 };
+
+const getReadmeOutline = (markdown: string): OutlineItem[] => (
+    markdown
+        .split('\n')
+        .map((line, index) => {
+            const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+            if (!match) return null;
+            return {
+                id: `${index}-${match[2]}`,
+                level: match[1].length,
+                text: match[2].replace(/[#_*`[\]()]/g, '').trim(),
+                lineNumber: index + 1,
+            };
+        })
+        .filter((item): item is OutlineItem => Boolean(item))
+);
 
 const formatText = (editor: EditorInstance | null, { prefix = '', suffix = '', type }: ToolbarActionParams) => {
     if (!editor) return;
@@ -393,6 +418,7 @@ const App: FC = () => {
     const [isZenMode, setIsZenMode] = useState(false);
     const [isTableModalOpen, setTableModalOpen] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [isOutlineOpen, setIsOutlineOpen] = useState(false);
     const [pendingDeleteProject, setPendingDeleteProject] = useState<ReadmeProject | null>(null);
     const [toast, setToast] = useState({ show: false, message: '' });
 
@@ -415,6 +441,8 @@ const App: FC = () => {
         const words = markdown.trim().split(/\s+/).filter(Boolean);
         return { lines: lines.length, words: words.length, chars: markdown.length };
     }, [markdown]);
+
+    const outline = useMemo(() => getReadmeOutline(markdown), [markdown]);
 
     useEffect(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
@@ -611,6 +639,14 @@ const App: FC = () => {
         });
     };
 
+    const jumpToOutlineItem = (item: OutlineItem) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        editor.setPosition({ lineNumber: item.lineNumber, column: 1 });
+        editor.revealLineInCenter(item.lineNumber);
+        editor.focus();
+    };
+
     const toolbarActions = {
         undo: () => editorRef.current?.trigger('toolbar', 'undo', null),
         redo: () => editorRef.current?.trigger('toolbar', 'redo', null),
@@ -649,6 +685,7 @@ const App: FC = () => {
         { name: 'Open markdown file', action: () => openFileInputRef.current?.click(), icon: <Upload size={20} /> },
         { name: 'Back to home', action: () => setView('home'), icon: <Home size={20} /> },
         { name: 'Insert table', action: toolbarActions.table, icon: <Table size={20} /> },
+        { name: 'Toggle README outline', action: () => setIsOutlineOpen(value => !value), icon: <Outline size={20} /> },
         { name: 'Toggle preview focus', action: () => setIsZenMode(value => !value), icon: <Maximize size={20} /> },
         { name: 'Toggle theme', action: () => setTheme(value => value === 'light' ? 'dark' : 'light'), icon: <Moon size={20} /> },
     ];
@@ -689,7 +726,10 @@ const App: FC = () => {
             <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
 
             {view === 'home' && (
-                <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-10 lg:px-8 lg:pt-16">
+                <main className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-10 lg:px-8 lg:pt-16">
+                    <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} className="icon-btn absolute right-5 top-5 lg:right-8" title="Toggle theme">
+                        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                    </button>
                     <header className="border-b border-border pb-8">
                         <div className="flex flex-col items-center gap-6 text-center">
                             <div className="grid size-11 place-items-center rounded-md border border-border bg-primary text-primary-foreground">
@@ -706,9 +746,6 @@ const App: FC = () => {
                                 <button onClick={handleNewProject} className="btn btn-primary">
                                     <Plus size={16} /> New blank README
                                 </button>
-                                <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} className="icon-btn" title="Toggle theme">
-                                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                                </button>
                             </div>
                         </div>
                     </header>
@@ -718,7 +755,6 @@ const App: FC = () => {
                             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                                 <div>
                                     <h2 className="text-base font-semibold">Projects</h2>
-                                    <p className="text-sm text-muted-foreground">Saved in this browser. Open one to continue editing.</p>
                                 </div>
                                 <span className="w-fit rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{projects.length} saved</span>
                             </div>
@@ -809,27 +845,79 @@ const App: FC = () => {
                         <PanelGroup direction="horizontal">
                             <Panel defaultSize={50} minSize={isZenMode ? 100 : 24}>
                                 <div className="relative flex h-full flex-col bg-background">
-                                    <div className="absolute bottom-3 left-3 top-3 z-40 flex max-h-[calc(100%-1.5rem)] flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur">
-                                        <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
-                                        <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
-                                        <div className="my-1 border-t border-border" />
-                                        {toolbarItems.map(item => {
-                                            if (item.type === 'divider') return <div key={item.id} className="my-1 border-t border-border" />;
-                                            if (item.type === 'dropdown') {
-                                                return (
-                                                    <HoverDropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''} side="right">
-                                                        {item.items?.map(sub => (
-                                                            <button key={sub.label} onClick={sub.action} className="dropdown-item">{sub.label}</button>
-                                                        ))}
-                                                    </HoverDropdownMenu>
-                                                );
-                                            }
-                                            return <button key={item.id} onClick={item.action} title={item.label} className="icon-btn">{item.icon}</button>;
-                                        })}
-                                        <div className="my-1 border-t border-border" />
+                                    <div className="absolute bottom-3 left-3 top-3 z-40 flex w-14 flex-col rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur">
+                                        <div className="flex flex-col gap-1">
+                                            <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
+                                            <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
+                                        </div>
+                                        <div className="my-1.5 border-t border-border" />
+                                        <button
+                                            onClick={() => setIsOutlineOpen(value => !value)}
+                                            title="README outline"
+                                            className={`icon-btn ${isOutlineOpen ? 'bg-accent text-accent-foreground' : ''}`}
+                                        >
+                                            <Outline size={18} />
+                                        </button>
+                                        <div className="my-1.5 border-t border-border" />
+                                        <div className="toolbar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pr-1.5">
+                                            {toolbarItems.map(item => {
+                                                if (item.type === 'divider') return <div key={item.id} className="my-1.5 border-t border-border" />;
+                                                if (item.type === 'dropdown') {
+                                                    return (
+                                                        <HoverDropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''} side="right">
+                                                            {item.items?.map(sub => (
+                                                                <button key={sub.label} onClick={sub.action} className="dropdown-item">{sub.label}</button>
+                                                            ))}
+                                                        </HoverDropdownMenu>
+                                                    );
+                                                }
+                                                return <button key={item.id} onClick={item.action} title={item.label} className="icon-btn">{item.icon}</button>;
+                                            })}
+                                        </div>
+                                        <div className="my-1.5 border-t border-border" />
                                         <button onClick={() => openFileInputRef.current?.click()} className="icon-btn" title="Open file"><Upload size={18} /></button>
                                     </div>
-                                    <div className="min-h-0 flex-1 overflow-hidden pl-14">
+                                    <AnimatePresence>
+                                        {isOutlineOpen && (
+                                            <motion.aside
+                                                className="absolute bottom-3 left-[4.25rem] top-3 z-30 flex w-72 flex-col rounded-lg border border-border bg-card/95 text-card-foreground shadow-sm backdrop-blur"
+                                                initial={{ opacity: 0, x: -8 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: -8 }}
+                                                transition={{ duration: 0.16, ease: 'easeOut' }}
+                                            >
+                                                <div className="flex h-11 items-center justify-between border-b border-border px-3">
+                                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                                        <Outline size={16} className="text-muted-foreground" />
+                                                        Outline
+                                                    </div>
+                                                    <button onClick={() => setIsOutlineOpen(false)} className="icon-btn size-7" title="Close outline">
+                                                        <Close size={15} />
+                                                    </button>
+                                                </div>
+                                                {outline.length > 0 ? (
+                                                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                                                        {outline.map(item => (
+                                                            <button
+                                                                key={item.id}
+                                                                onClick={() => jumpToOutlineItem(item)}
+                                                                className="block w-full truncate rounded-md py-1.5 pr-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                                                style={{ paddingLeft: `${Math.min(item.level - 1, 4) * 12 + 8}px` }}
+                                                                title={item.text}
+                                                            >
+                                                                {item.text}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                                                        Add headings to build an outline.
+                                                    </div>
+                                                )}
+                                            </motion.aside>
+                                        )}
+                                    </AnimatePresence>
+                                    <div className={`min-h-0 flex-1 overflow-hidden transition-[padding] ${isOutlineOpen ? 'pl-[22rem]' : 'pl-14'}`}>
                                         <MonacoEditor
                                             height="100%"
                                             language="markdown"
