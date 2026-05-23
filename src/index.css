@@ -1,2 +1,139 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+}
+
+:root {
+  color-scheme: light;
+  --background: 42 34% 94%;
+  --foreground: 220 11% 13%;
+  --card: 42 38% 97%;
+  --card-foreground: 220 11% 13%;
+  --popover: 42 38% 97%;
+  --popover-foreground: 220 11% 13%;
+  --primary: 220 12% 14%;
+  --primary-foreground: 42 38% 94%;
+  --secondary: 39 28% 88%;
+  --secondary-foreground: 220 11% 13%;
+  --muted: 40 24% 89%;
+  --muted-foreground: 220 7% 38%;
+  --accent: 38 27% 84%;
+  --accent-foreground: 220 11% 13%;
+  --destructive: 0 66% 43%;
+  --border: 38 18% 76%;
+  --input: 38 18% 76%;
+  --ring: 220 12% 14%;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 220 12% 10%;
+  --foreground: 42 38% 92%;
+  --card: 220 11% 14%;
+  --card-foreground: 42 38% 92%;
+  --popover: 220 11% 14%;
+  --popover-foreground: 42 38% 92%;
+  --primary: 220 11% 16%;
+  --primary-foreground: 42 38% 92%;
+  --secondary: 42 34% 88%;
+  --secondary-foreground: 220 12% 12%;
+  --muted: 220 9% 19%;
+  --muted-foreground: 42 16% 72%;
+  --accent: 42 34% 88%;
+  --accent-foreground: 220 12% 12%;
+  --destructive: 0 72% 58%;
+  --border: 220 8% 28%;
+  --input: 220 8% 28%;
+  --ring: 42 34% 88%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  font-size: 14px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-2 rounded-md px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground shadow-sm hover:opacity-90;
+  }
+
+  .btn-secondary {
+    @apply border border-border bg-secondary text-secondary-foreground shadow-sm hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .btn-ghost {
+    @apply text-muted-foreground hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .icon-btn {
+    @apply inline-grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  .input {
+    @apply h-8 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20;
+  }
+
+  .dropdown-item {
+    @apply flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground;
+  }
+
+}
+
+.markdown-preview {
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+}
+
+.markdown-preview pre {
+  border-radius: 0.5rem;
+}
+
+.markdown-preview img {
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+}
