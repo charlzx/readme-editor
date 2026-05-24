@@ -552,6 +552,8 @@ const App: FC = () => {
     const [clock, setClock] = useState(() => Date.now());
     const [toast, setToast] = useState({ show: false, message: '' });
     const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(true);
+    const [wordGoal, setWordGoal] = useState<number | null>(null);
+    const [isGoalInputOpen, setIsGoalInputOpen] = useState(false);
     const [isToolbarVisible, setIsToolbarVisible] = useState(true);
 
     const editorRef = useRef<EditorInstance | null>(null);
@@ -573,7 +575,9 @@ const App: FC = () => {
     const stats = useMemo(() => {
         const lines = markdown.split('\n');
         const words = markdown.trim().split(/\s+/).filter(Boolean);
-        return { lines: lines.length, words: words.length, chars: markdown.length };
+        // Estimated reading time based on standard 200 WPM
+        const readingTime = Math.ceil(words.length / 200);
+        return { lines: lines.length, words: words.length, chars: markdown.length, readingTime };
     }, [markdown]);
 
     const outline = useMemo(() => getReadmeOutline(markdown), [markdown]);
@@ -1591,11 +1595,91 @@ const App: FC = () => {
                                         </Suspense>
                                     </div>
                                     {!isZenMode && (
-                                        <div className="flex flex-shrink-0 items-center gap-4 border-t border-border bg-muted/50 px-4 py-1.5 pl-4 text-xs text-muted-foreground">
+                                        <div className="relative flex flex-shrink-0 items-center gap-4 border-t border-border bg-muted/50 px-4 py-2 pl-4 text-xs text-muted-foreground overflow-hidden select-none">
                                             <span><Save size={13} className="mr-1 inline" /> Saved {savedLabel}</span>
                                             <span>Lines {stats.lines}</span>
-                                            <span>Words {stats.words}</span>
+                                            
+                                            {/* Interactive Word Goal block */}
+                                            <div className="relative inline-block">
+                                                <button
+                                                    onClick={() => setIsGoalInputOpen(prev => !prev)}
+                                                    className="hover:text-accent font-medium transition-colors cursor-pointer select-none"
+                                                    title="Set custom writing goal"
+                                                >
+                                                    Words {stats.words}
+                                                    {wordGoal !== null && ` / ${wordGoal}`}
+                                                </button>
+                                                
+                                                <AnimatePresence>
+                                                    {isGoalInputOpen && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            className="absolute bottom-full left-0 mb-2 z-50 w-44 rounded-md border border-border bg-card p-2 shadow-lg"
+                                                            onClick={e => e.stopPropagation()}
+                                                        >
+                                                            <form
+                                                                onSubmit={e => {
+                                                                    e.preventDefault();
+                                                                    const form = e.currentTarget;
+                                                                    const input = form.elements.namedItem('goalVal') as HTMLInputElement;
+                                                                    const val = parseInt(input.value, 10);
+                                                                    setWordGoal(isNaN(val) || val <= 0 ? null : val);
+                                                                    setIsGoalInputOpen(false);
+                                                                }}
+                                                                className="flex flex-col gap-1.5"
+                                                            >
+                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                                                    Target Word Goal
+                                                                </label>
+                                                                <div className="flex gap-1">
+                                                                    <input
+                                                                        type="number"
+                                                                        name="goalVal"
+                                                                        defaultValue={wordGoal ?? ''}
+                                                                        placeholder="e.g. 500"
+                                                                        className="h-7 w-full rounded border border-border bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent/40 font-sans text-foreground"
+                                                                        autoFocus
+                                                                    />
+                                                                    <button
+                                                                        type="submit"
+                                                                        className="btn btn-primary text-xs px-2 h-7 font-semibold"
+                                                                    >
+                                                                        Set
+                                                                    </button>
+                                                                </div>
+                                                                {wordGoal !== null && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setWordGoal(null);
+                                                                            setIsGoalInputOpen(false);
+                                                                        }}
+                                                                        className="text-[10px] font-semibold text-destructive hover:underline self-start"
+                                                                    >
+                                                                        Clear Goal
+                                                                    </button>
+                                                                )}
+                                                            </form>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+
                                             <span>Chars {stats.chars}</span>
+                                            <span>•</span>
+                                            <span>{stats.readingTime} min read</span>
+
+                                            {/* Writing Goal progress bar */}
+                                            {wordGoal !== null && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-muted">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-accent/60 to-accent transition-all duration-300 shadow-[0_0_8px_hsl(var(--accent))]"
+                                                        style={{ width: `${Math.min(100, (stats.words / wordGoal) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
