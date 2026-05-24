@@ -114,12 +114,12 @@ const createId = () => {
 
 const nowIso = () => new Date().toISOString();
 
-const inferProjectName = (markdown: string, fallback = 'Untitled README') => {
+const inferProjectName = (markdown: string, fallback = 'Untitled Markdown') => {
     const heading = markdown.split('\n').find(line => /^#\s+/.test(line));
     return heading?.replace(/^#\s+/, '').trim() || fallback;
 };
 
-const createProject = (name = 'Untitled README', markdown = DEFAULT_MARKDOWN): ReadmeProject => {
+const createProject = (name = 'Untitled Markdown', markdown = DEFAULT_MARKDOWN): ReadmeProject => {
     const timestamp = nowIso();
     return {
         id: createId(),
@@ -143,7 +143,7 @@ const loadProjects = (): ReadmeProject[] => {
 
     const legacyContent = localStorage.getItem(LEGACY_CONTENT_KEY);
     if (legacyContent) {
-        return [createProject(inferProjectName(legacyContent, 'Imported README'), legacyContent)];
+        return [createProject(inferProjectName(legacyContent, 'Imported Markdown'), legacyContent)];
     }
 
     return [];
@@ -200,6 +200,14 @@ const getExcerpt = (markdown: string) => {
         .slice(0, 2)
         .join(' ');
     return text || 'No content yet.';
+};
+
+const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 };
 
 const getReadmeOutline = (markdown: string): OutlineItem[] => (
@@ -595,7 +603,7 @@ const App: FC = () => {
     };
 
     const handleNewProject = () => {
-        const project = createProject('Untitled README');
+        const project = createProject('Untitled Markdown');
         setProjects(current => [project, ...current]);
         setActiveProjectId(project.id);
         setView('editor');
@@ -737,11 +745,11 @@ const App: FC = () => {
     ];
 
     const commands: Command[] = [
-        { name: 'New README', action: handleNewProject, icon: <FilePlus2 size={20} /> },
+        { name: 'New Markdown', action: handleNewProject, icon: <FilePlus2 size={20} /> },
         { name: 'Open markdown file', action: () => openFileInputRef.current?.click(), icon: <Upload size={20} /> },
         { name: 'Back to home', action: () => setView('home'), icon: <Home size={20} /> },
         { name: 'Insert table', action: toolbarActions.table, icon: <Table size={20} /> },
-        { name: 'Toggle README outline', action: () => setIsOutlineOpen(value => !value), icon: <Outline size={20} /> },
+        { name: 'Toggle Markdown outline', action: () => setIsOutlineOpen(value => !value), icon: <Outline size={20} /> },
         { name: 'Toggle preview focus', action: () => setIsZenMode(value => !value), icon: <Maximize size={20} /> },
         { name: 'Toggle theme', action: () => setTheme(value => value === 'light' ? 'dark' : 'light'), icon: <Moon size={20} /> },
     ];
@@ -791,105 +799,167 @@ const App: FC = () => {
             <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
 
             {view === 'home' && (
-                <main className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-10 lg:px-8 lg:pt-16">
-                    <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} className="icon-btn absolute right-5 top-5 lg:right-8" title="Toggle theme">
-                        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                    </button>
-                    <header className="border-b border-border pb-8">
-                        <div className="flex flex-col items-center gap-6 text-center">
-                            <div className="grid size-11 place-items-center rounded-md border border-border bg-primary text-primary-foreground">
-                                <Code size={23} />
-                            </div>
-                            <div>
-                                <h1 className="text-3xl font-semibold tracking-tight">README Editor</h1>
-                                <p className="mt-2 text-sm text-muted-foreground">Local projects, fast Markdown, clean preview.</p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <button onClick={() => openFileInputRef.current?.click()} className="btn btn-secondary">
-                                    <Upload size={16} /> Import markdown
+                <div className="min-h-screen bg-background text-foreground flex flex-col relative">
+                    {/* Theme Toggle in Top Right */}
+                    <div className="absolute top-6 right-6 z-40">
+                        <button 
+                            onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} 
+                            className="icon-btn" 
+                            title="Toggle theme"
+                        >
+                            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                        </button>
+                    </div>
+
+                    {/* Main Container */}
+                    <main className="mx-auto w-full max-w-3xl px-6 py-16 flex-1 flex flex-col">
+                        {/* Title Block */}
+                        <div className="mb-10 text-center sm:text-left">
+                            <h1 className="text-3xl font-extrabold tracking-tight">Markdown Editor</h1>
+                            <p className="mt-2 text-base text-muted-foreground">
+                                Local projects, fast Markdown, clean preview.
+                            </p>
+
+                            {/* Quick CTAs */}
+                            <div className="mt-6 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                                <button
+                                    onClick={() => openFileInputRef.current?.click()}
+                                    className="btn btn-secondary h-9 px-4 gap-2 font-medium"
+                                >
+                                    <Upload size={16} />
+                                    Import markdown
                                 </button>
-                                <button onClick={handleNewProject} className="btn btn-primary">
-                                    <Plus size={16} /> New blank README
+                                <button
+                                    onClick={handleNewProject}
+                                    className="btn btn-primary h-9 px-4 gap-2 font-medium"
+                                >
+                                    <Plus size={16} />
+                                    New blank Markdown
                                 </button>
                             </div>
                         </div>
-                    </header>
 
-                    <section className="py-8">
-                        <div>
-                            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                                <div>
-                                    <h2 className="text-base font-semibold">Projects</h2>
+                        {/* Projects Section */}
+                        <div className="border-t border-border pt-10 flex-1 flex flex-col">
+                            <h2 className="text-xl font-bold tracking-tight mb-4">Projects</h2>
+
+                            {/* Search + Counter */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+                                <div className="relative flex-1">
+                                    <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                    <input
+                                        value={projectSearch}
+                                        onChange={event => setProjectSearch(event.target.value)}
+                                        placeholder="Search projects..."
+                                        className="h-9 w-full rounded-lg border border-border bg-muted/40 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60 transition-all"
+                                    />
                                 </div>
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                    <div className="relative">
-                                        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                        <input
-                                            value={projectSearch}
-                                            onChange={event => setProjectSearch(event.target.value)}
-                                            placeholder="Search projects..."
-                                            className="h-8 w-full rounded-md border border-input bg-card pl-8 pr-3 text-[13px] outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 sm:w-56"
-                                        />
-                                    </div>
-                                    <span className="w-fit rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{filteredProjects.length} of {projects.length}</span>
+                                <div className="text-xs font-mono text-muted-foreground px-2.5 py-1 shrink-0 bg-muted/50 border border-border rounded-md self-start sm:self-auto">
+                                    {filteredProjects.length} of {projects.length}
                                 </div>
                             </div>
 
-                            {projects.length > 0 ? (
-                                <div className="space-y-3">
-                                    {filteredProjects.map(project => (
-                                        <article key={project.id} className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-4 text-card-foreground transition hover:border-muted-foreground/40 sm:flex-row sm:items-center">
-                                            <button onClick={() => openProject(project.id)} className="flex min-w-0 flex-1 items-start gap-4 text-left">
-                                                <div className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-secondary-foreground">
-                                                    <FileText size={19} />
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        <h3 className="max-w-full truncate text-base font-semibold">{project.name}</h3>
-                                                        <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
-                                                            <Clock3 size={13} /> {formatUpdatedAt(project.updatedAt)}
-                                                        </span>
-                                                    </div>
-                                                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{getExcerpt(project.markdown)}</p>
-                                                </div>
-                                            </button>
-                                            <div className="flex shrink-0 items-center gap-2 sm:border-l sm:border-border sm:pl-4">
-                                                <button onClick={() => openProject(project.id)} className="btn btn-secondary h-8 px-2.5 text-xs">
-                                                    <FolderOpen size={14} /> Open
-                                                </button>
-                                                <button onClick={() => handleDuplicateProject(project)} className="btn btn-ghost h-8 px-2.5 text-xs">
-                                                    <Copy size={14} /> Duplicate
-                                                </button>
-                                                <button onClick={() => requestDeleteProject(project.id)} className="icon-btn size-8 text-destructive" title="Delete project">
-                                                    <Trash2 size={15} />
-                                                </button>
+                            {/* List or Empty State */}
+                            <div className="flex-1 flex flex-col">
+                                <AnimatePresence mode="wait">
+                                    {projects.length === 0 ? (
+                                        <motion.div
+                                            key="empty"
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-xl bg-card/20 px-6"
+                                        >
+                                            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted border border-border">
+                                                <FolderOpen size={22} className="text-muted-foreground/60" />
                                             </div>
-                                        </article>
-                                    ))}
-                                    {filteredProjects.length === 0 && (
-                                        <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                                            No projects match “{projectSearch}”.
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
-                                    <div className="mx-auto grid size-12 place-items-center rounded-md bg-secondary text-secondary-foreground">
-                                        <FilePlus2 size={23} />
-                                    </div>
-                                    <h2 className="mt-4 text-lg font-semibold">No projects yet</h2>
-                                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">Create a blank README or import a Markdown file to keep it available in this browser.</p>
-                                    <div className="mt-5 flex justify-center gap-2">
-                                        <button onClick={handleNewProject} className="btn btn-primary">
-                                            <Plus size={16} /> New blank README
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                                            <h3 className="text-base font-semibold">No projects yet</h3>
+                                            <p className="mt-2 max-w-sm text-sm text-muted-foreground leading-relaxed">
+                                                Create a blank project or import a Markdown file to keep it available in this browser.
+                                            </p>
+                                            <button
+                                                className="btn btn-primary mt-6 gap-2 font-medium"
+                                                onClick={handleNewProject}
+                                            >
+                                                <Plus size={16} />
+                                                New blank Markdown
+                                            </button>
+                                        </motion.div>
+                                    ) : filteredProjects.length === 0 ? (
+                                        <motion.div
+                                            key="no-results"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="py-12 text-center text-muted-foreground text-sm border border-border border-dashed rounded-xl"
+                                        >
+                                            No projects match &ldquo;{projectSearch}&rdquo;
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="list"
+                                            layout
+                                            className="flex flex-col border border-border rounded-xl bg-card/10 overflow-hidden"
+                                        >
+                                            {filteredProjects.map((project) => (
+                                                <div
+                                                    key={project.id}
+                                                    onClick={() => openProject(project.id)}
+                                                    className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border bg-card/20 px-4 py-6 hover:bg-muted/30 transition-all duration-150 cursor-pointer first:rounded-t-lg last:rounded-b-lg last:border-b-0"
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <FileText size={20} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="truncate font-medium text-foreground text-sm leading-none">
+                                                                    {project.name}
+                                                                </span>
+                                                                <span className="text-[11px] text-muted-foreground">
+                                                                    ({formatBytes(new Blob([project.markdown]).size)})
+                                                                </span>
+                                                            </div>
+                                                            <p className="truncate text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                                                                {getExcerpt(project.markdown)}
+                                                            </p>
+                                                        </div>
+                                                    </div>
 
-                    </section>
-                </main>
+                                                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0" onClick={event => event.stopPropagation()}>
+                                                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                            <Clock3 size={14} />
+                                                            {formatRelativeTime(project.updatedAt, clock)}
+                                                        </span>
+
+                                                        <div className="flex items-center gap-2 min-w-[100px] justify-end">
+                                                            <button
+                                                                onClick={() => handleDuplicateProject(project)}
+                                                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground"
+                                                                title="Duplicate project"
+                                                            >
+                                                                <Copy size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => requestDeleteProject(project.id)}
+                                                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                                                                title="Delete project"
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors hidden sm:block">
+                                                                <path d="m9 18 6-6-6-6"/>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    </main>
+                </div>
             )}
 
             {view === 'editor' && activeProject && (
@@ -935,7 +1005,7 @@ const App: FC = () => {
                                         <div className="my-1.5 border-t border-border" />
                                         <button
                                             onClick={() => setIsOutlineOpen(value => !value)}
-                                            title="README outline"
+                                            title="Markdown outline"
                                             className={`icon-btn ${isOutlineOpen ? 'bg-accent text-accent-foreground' : ''}`}
                                         >
                                             <Outline size={18} />

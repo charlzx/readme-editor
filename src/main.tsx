@@ -25,7 +25,7 @@ const ScreenGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
           <h1 className="mt-5 text-xl font-semibold tracking-tight">Desktop Required</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            README Editor uses a split editor, preview, and document outline that need more horizontal space.
+            Markdown Editor uses a split editor, preview, and document outline that need more horizontal space.
           </p>
           <div className="mt-5 inline-flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
             <MonitorIcon size={15} />
