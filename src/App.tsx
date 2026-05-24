@@ -63,12 +63,21 @@ type View = 'home' | 'editor';
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'));
 
+interface ReadmeVersion {
+    id: string;
+    timestamp: string;
+    name: string;
+    markdown: string;
+    size: number;
+}
+
 interface ReadmeProject {
     id: string;
     name: string;
     markdown: string;
     createdAt: string;
     updatedAt: string;
+    versions?: ReadmeVersion[];
 }
 
 interface Command {
@@ -405,14 +414,29 @@ const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Comma
     );
 };
 
-const HoverDropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode; side?: 'bottom' | 'right' }> = ({ triggerIcon, label, children, side = 'bottom' }) => {
+const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode; side?: 'bottom' | 'right' }> = ({ triggerIcon, label, children, side = 'bottom' }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleOutsideClick = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+        };
+    }, [isOpen]);
+
     return (
-        <div className="relative" onMouseEnter={() => setIsOpen(true)} onMouseLeave={() => setIsOpen(false)}>
+        <div className="relative inline-block" ref={containerRef}>
             <button
                 onClick={() => setIsOpen(prev => !prev)}
                 title={label}
-                className="icon-btn"
+                className={`icon-btn ${isOpen ? 'bg-accent text-accent-foreground' : ''}`}
             >
                 {triggerIcon}
             </button>
@@ -504,6 +528,7 @@ const App: FC = () => {
     const [isTableModalOpen, setTableModalOpen] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [projectSearch, setProjectSearch] = useState('');
     const [activeLine, setActiveLine] = useState(1);
     const [clock, setClock] = useState(() => Date.now());
@@ -518,6 +543,7 @@ const App: FC = () => {
     const decorationsRef = useRef<string[]>([]);
     const isScrolling = useRef(false);
     const completionProviderRef = useRef<any>(null);
+    const lastAutoCheckpointRef = useRef<string>('');
 
     const activeProject = useMemo(
         () => projects.find(project => project.id === activeProjectId) || null,
@@ -587,6 +613,40 @@ const App: FC = () => {
     useEffect(() => {
         if (!activeProject && view === 'editor') setView('home');
     }, [activeProject, view]);
+
+    useEffect(() => {
+        if (!activeProject) {
+            lastAutoCheckpointRef.current = '';
+            return;
+        }
+        if (!lastAutoCheckpointRef.current) {
+            lastAutoCheckpointRef.current = activeProject.markdown;
+            return;
+        }
+
+        const interval = window.setInterval(() => {
+            if (activeProject.markdown !== lastAutoCheckpointRef.current) {
+                const timestamp = nowIso();
+                const newVersion: ReadmeVersion = {
+                    id: createId(),
+                    timestamp,
+                    name: `Auto-save Backup (${formatUpdatedAt(timestamp)})`,
+                    markdown: activeProject.markdown,
+                    size: new Blob([activeProject.markdown]).size
+                };
+                setProjects(current => current.map(project => {
+                    if (project.id === activeProjectId) {
+                        const pastVersions = project.versions || [];
+                        return { ...project, versions: [newVersion, ...pastVersions].slice(0, 15) };
+                    }
+                    return project;
+                }));
+                lastAutoCheckpointRef.current = activeProject.markdown;
+            }
+        }, 10 * 60 * 1000);
+
+        return () => window.clearInterval(interval);
+    }, [activeProject?.id, activeProject?.markdown, activeProjectId]);
 
     useEffect(() => {
         if (!editorRef.current || !monacoRef.current) return;
@@ -663,6 +723,59 @@ const App: FC = () => {
         showToast('Project created');
     };
 
+    const handleCreateCheckpoint = useCallback((customName?: string) => {
+        if (!activeProject) return;
+        const timestamp = nowIso();
+        const newVersion: ReadmeVersion = {
+            id: createId(),
+            timestamp,
+            name: customName?.trim() || `Backup ${formatUpdatedAt(timestamp)}`,
+            markdown: activeProject.markdown,
+            size: new Blob([activeProject.markdown]).size
+        };
+
+        setProjects(current => current.map(project => {
+            if (project.id === activeProjectId) {
+                const pastVersions = project.versions || [];
+                const updatedVersions = [newVersion, ...pastVersions].slice(0, 15);
+                return { ...project, versions: updatedVersions, updatedAt: nowIso() };
+            }
+            return project;
+        }));
+        showToast('Version checkpoint saved');
+    }, [activeProject, activeProjectId, showToast]);
+
+    const handleDeleteCheckpoint = useCallback((versionId: string) => {
+        if (!activeProjectId) return;
+        setProjects(current => current.map(project => {
+            if (project.id === activeProjectId) {
+                const updatedVersions = (project.versions || []).filter(v => v.id !== versionId);
+                return { ...project, versions: updatedVersions };
+            }
+            return project;
+        }));
+        showToast('Checkpoint deleted');
+    }, [activeProjectId, showToast]);
+
+    const handleRestoreCheckpoint = useCallback((version: ReadmeVersion) => {
+        if (!activeProject) return;
+        const pastVersions = activeProject.versions || [];
+        const currentSnapshot: ReadmeVersion = {
+            id: createId(),
+            timestamp: nowIso(),
+            name: `Pre-restore Backup (${formatUpdatedAt(nowIso())})`,
+            markdown: activeProject.markdown,
+            size: new Blob([activeProject.markdown]).size
+        };
+        
+        updateActiveProject({
+            markdown: version.markdown,
+            versions: [currentSnapshot, ...pastVersions].slice(0, 15)
+        });
+        
+        showToast('Version restored (Pre-restore backup saved)');
+    }, [activeProject, updateActiveProject, showToast]);
+
 
 
     const handleDuplicateProject = (project: ReadmeProject) => {
@@ -697,6 +810,17 @@ const App: FC = () => {
         reader.onload = eventData => {
             const content = String(eventData.target?.result || '');
             const project = createProject(file.name.replace(/\.md$/i, '') || inferProjectName(content), content);
+            
+            // Initialize with an Initial Import version backup
+            const initialVersion: ReadmeVersion = {
+                id: createId(),
+                timestamp: nowIso(),
+                name: 'Initial Import',
+                markdown: content,
+                size: new Blob([content]).size
+            };
+            project.versions = [initialVersion];
+
             setProjects(current => [project, ...current]);
             setActiveProjectId(project.id);
             setView('editor');
@@ -1193,16 +1317,31 @@ const App: FC = () => {
                         <PanelGroup direction="horizontal">
                             <Panel defaultSize={50} minSize={isZenMode ? 100 : 24}>
                                 <div className="relative flex h-full flex-col bg-background">
-                                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur max-w-[90%] overflow-x-auto">
+                                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur max-w-[90%] overflow-visible">
                                         <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
                                         <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
                                         <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
                                         <button
-                                            onClick={() => setIsOutlineOpen(value => !value)}
+                                            onClick={() => setIsOutlineOpen(o => {
+                                                const next = !o;
+                                                if (next) setIsHistoryOpen(false);
+                                                return next;
+                                            })}
                                             title="Markdown outline"
                                             className={`icon-btn ${isOutlineOpen ? 'bg-accent text-accent-foreground' : ''}`}
                                         >
                                             <Outline size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => setIsHistoryOpen(h => {
+                                                const next = !h;
+                                                if (next) setIsOutlineOpen(false);
+                                                return next;
+                                            })}
+                                            title="Version history"
+                                            className={`icon-btn ${isHistoryOpen ? 'bg-accent text-accent-foreground' : ''}`}
+                                        >
+                                            <Clock3 size={18} />
                                         </button>
                                         <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
                                         <div className="flex items-center gap-1">
@@ -1210,11 +1349,11 @@ const App: FC = () => {
                                                 if (item.type === 'divider') return <div key={item.id} className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />;
                                                 if (item.type === 'dropdown') {
                                                     return (
-                                                        <HoverDropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''} side="bottom">
+                                                        <DropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''} side="bottom">
                                                             {item.items?.map(sub => (
                                                                 <button key={sub.label} onClick={sub.action} className="dropdown-item">{sub.label}</button>
                                                             ))}
-                                                        </HoverDropdownMenu>
+                                                        </DropdownMenu>
                                                     );
                                                 }
                                                 return <button key={item.id} onClick={item.action} title={item.label} className="icon-btn">{item.icon}</button>;
@@ -1262,8 +1401,104 @@ const App: FC = () => {
                                                 )}
                                             </motion.aside>
                                         )}
+                                        {isHistoryOpen && activeProject && (
+                                            <motion.aside
+                                                className="absolute bottom-3 left-3 top-3 z-30 flex w-72 flex-col rounded-lg border border-border bg-card/95 text-card-foreground shadow-sm backdrop-blur"
+                                                initial={{ opacity: 0, x: -8 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: -8 }}
+                                                transition={{ duration: 0.16, ease: 'easeOut' }}
+                                            >
+                                                <div className="flex h-11 items-center justify-between border-b border-border px-3">
+                                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                                        <Clock3 size={16} className="text-muted-foreground" />
+                                                        Version History
+                                                    </div>
+                                                    <button onClick={() => setIsHistoryOpen(false)} className="icon-btn size-7" title="Close history">
+                                                        <Close size={15} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Manual Checkpoint Creator */}
+                                                <div className="p-3 border-b border-border bg-muted/30">
+                                                    <form
+                                                        onSubmit={e => {
+                                                            e.preventDefault();
+                                                            const form = e.currentTarget;
+                                                            const input = form.elements.namedItem('versionName') as HTMLInputElement;
+                                                            const name = input.value.trim();
+                                                            handleCreateCheckpoint(name || undefined);
+                                                            form.reset();
+                                                        }}
+                                                        className="flex gap-1.5"
+                                                    >
+                                                        <input
+                                                            type="text"
+                                                            name="versionName"
+                                                            placeholder="Snapshot name..."
+                                                            className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition-all font-sans"
+                                                        />
+                                                        <button
+                                                            type="submit"
+                                                            className="btn btn-primary text-xs px-2.5 h-8 font-semibold shrink-0"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </form>
+                                                </div>
+
+                                                {/* Checkpoints List */}
+                                                <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1.5">
+                                                    {(activeProject.versions && activeProject.versions.length > 0) ? (
+                                                        activeProject.versions.map(version => (
+                                                            <div
+                                                                key={version.id}
+                                                                className="group relative flex flex-col gap-1 rounded-md border border-border bg-card/50 p-2.5 hover:bg-accent/40 hover:border-accent/40 transition-all duration-150"
+                                                            >
+                                                                <div className="flex items-start justify-between gap-2 pr-6">
+                                                                    <span className="font-semibold text-xs text-foreground leading-tight truncate" title={version.name}>
+                                                                        {version.name}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+                                                                    <span>{formatRelativeTime(version.timestamp, clock)}</span>
+                                                                    <span>•</span>
+                                                                    <span>{formatBytes(version.size)}</span>
+                                                                </div>
+                                                                
+                                                                {/* Restore Button */}
+                                                                <div className="mt-1.5 flex items-center justify-between">
+                                                                    <button
+                                                                        onClick={() => handleRestoreCheckpoint(version)}
+                                                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
+                                                                    >
+                                                                        Restore
+                                                                    </button>
+                                                                </div>
+
+                                                                {/* Delete Button inside hover group */}
+                                                                <button
+                                                                    onClick={() => handleDeleteCheckpoint(version.id)}
+                                                                    className="absolute top-2 right-2 p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-opacity opacity-0 group-hover:opacity-100"
+                                                                    title="Delete version"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="flex h-32 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                                                            No checkpoints saved yet.
+                                                            <p className="mt-1 text-[10px] text-muted-foreground/60 leading-relaxed max-w-[200px]">
+                                                                Snapshots are saved automatically every 10 minutes when changes are made.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </motion.aside>
+                                        )}
                                     </AnimatePresence>
-                                    <div className={`min-h-0 flex-1 overflow-hidden transition-[padding] ${isOutlineOpen ? 'pl-[19.5rem] pt-16' : 'pl-4 pt-16'}`}>
+                                    <div className={`min-h-0 flex-1 overflow-hidden transition-[padding] ${isOutlineOpen || isHistoryOpen ? 'pl-[19.5rem] pt-16' : 'pl-4 pt-16'}`}>
                                         <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}>
                                             <MonacoEditor
                                                 height="100%"
