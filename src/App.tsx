@@ -414,9 +414,11 @@ const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Comma
     );
 };
 
-const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode; side?: 'bottom' | 'right' }> = ({ triggerIcon, label, children, side = 'bottom' }) => {
+const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode }> = ({ triggerIcon, label, children }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -431,10 +433,22 @@ const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactN
         };
     }, [isOpen]);
 
+    const handleToggle = () => {
+        if (!isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom + 8,
+                left: Math.min(rect.left, window.innerWidth - 200)
+            });
+        }
+        setIsOpen(prev => !prev);
+    };
+
     return (
         <div className="relative inline-block" ref={containerRef}>
             <button
-                onClick={() => setIsOpen(prev => !prev)}
+                ref={buttonRef}
+                onClick={handleToggle}
                 title={label}
                 className={`icon-btn ${isOpen ? 'bg-accent text-accent-foreground' : ''}`}
             >
@@ -446,7 +460,12 @@ const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactN
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
-                        className={`absolute z-50 min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm ${side === 'right' ? 'left-full top-0 ml-2' : 'left-0 top-full mt-2'}`}
+                        style={{
+                            position: 'fixed',
+                            top: coords.top,
+                            left: coords.left,
+                        }}
+                        className="z-[100] min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm"
                         onClick={() => setIsOpen(false)}
                     >
                         {children}
@@ -1083,6 +1102,10 @@ const App: FC = () => {
                     background: hsl(var(--secondary));
                     color: hsl(var(--secondary-foreground));
                 }
+                .scrollbar-thin::-webkit-scrollbar { height: 4px; background: transparent; }
+                .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 9999px; }
+                .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+                .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
             `}</style>
             <input type="file" ref={openFileInputRef} onChange={handleOpenFile} className="hidden" accept=".md,text/markdown" />
             <input type="file" ref={imageInputRef} onChange={event => handleImageUpload(event.target.files?.[0])} className="hidden" accept="image/*" />
@@ -1317,7 +1340,7 @@ const App: FC = () => {
                         <PanelGroup direction="horizontal">
                             <Panel defaultSize={50} minSize={isZenMode ? 100 : 24}>
                                 <div className="relative flex h-full flex-col bg-background">
-                                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center justify-center gap-1 rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur max-w-[90%] overflow-visible">
+                                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur max-w-[90%] overflow-x-auto whitespace-nowrap scrollbar-thin">
                                         <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
                                         <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
                                         <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
@@ -1349,7 +1372,7 @@ const App: FC = () => {
                                                 if (item.type === 'divider') return <div key={item.id} className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />;
                                                 if (item.type === 'dropdown') {
                                                     return (
-                                                        <DropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''} side="bottom">
+                                                        <DropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''}>
                                                             {item.items?.map(sub => (
                                                                 <button key={sub.label} onClick={sub.action} className="dropdown-item">{sub.label}</button>
                                                             ))}
