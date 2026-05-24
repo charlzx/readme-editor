@@ -50,13 +50,11 @@ import {
 } from '@phosphor-icons/react';
 import type { Monaco } from '@monaco-editor/react';
 import type { editor as MonacoEditorTypes } from 'monaco-editor';
-import { Marked } from 'marked';
-import { markedHighlight } from 'marked-highlight';
 import DOMPurify from 'dompurify';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useMarkdownWorker } from './hooks/useMarkdownWorker';
 
 type EditorInstance = MonacoEditorTypes.IStandaloneCodeEditor;
 type MonacoInstance = Monaco;
@@ -109,14 +107,7 @@ const ACTIVE_PROJECT_KEY = 'readme-editor-active-project';
 const LEGACY_CONTENT_KEY = 'readme-editor-content';
 const THEME_KEY = 'readme-editor-theme';
 
-const markedInstance = new Marked(
-    markedHighlight({
-        highlight(code, lang) {
-            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-            return hljs.highlight(code, { language }).value;
-        },
-    })
-);
+// Marked compiler is now running inside the background Web Worker
 
 const DEFAULT_MARKDOWN = '';
 
@@ -546,6 +537,7 @@ const ProjectNameEditor: FC<{
 };
 
 const App: FC = () => {
+    const { compileMarkdown } = useMarkdownWorker();
     const [projects, setProjects] = useState<ReadmeProject[]>(loadProjects);
     const [activeProjectId, setActiveProjectId] = useState<string | null>(() => localStorage.getItem(ACTIVE_PROJECT_KEY));
     const [view, setView] = useState<View>('home');
@@ -629,13 +621,17 @@ const App: FC = () => {
     }, []);
 
     useEffect(() => {
-        const renderMarkdown = async () => {
-            if (!previewRef.current) return;
-            const parsed = await markedInstance.parse(markdown);
-            previewRef.current.innerHTML = DOMPurify.sanitize(parsed);
-        };
-        renderMarkdown();
-    }, [markdown]);
+        if (!previewRef.current) return;
+        compileMarkdown(markdown, (compiledHtml, error) => {
+            if (previewRef.current) {
+                if (error) {
+                    previewRef.current.innerHTML = `<div class="p-4 text-destructive bg-destructive/10 border border-destructive/20 rounded-md font-mono text-sm">${error}</div>`;
+                } else {
+                    previewRef.current.innerHTML = DOMPurify.sanitize(compiledHtml);
+                }
+            }
+        });
+    }, [markdown, compileMarkdown]);
 
     useEffect(() => {
         if (!activeProject && view === 'editor') setView('home');
