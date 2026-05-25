@@ -7,33 +7,21 @@ import React, {
     useState,
     Suspense,
     type FC,
-    type ReactNode,
 } from 'react';
-import { createPortal } from 'react-dom';
 import {
     ArrowClockwiseIcon as Redo,
     ArrowCounterClockwiseIcon as Undo,
     ArrowLeftIcon as ArrowLeft,
-    ArrowsInIcon as Minimize,
-    ArrowsOutIcon as Maximize,
-    CheckIcon as Check,
     ClockIcon as Clock3,
     CodeBlockIcon as Code2,
     CopyIcon as Copy,
     DownloadSimpleIcon as FileDown,
-    FilePlusIcon as FilePlus2,
-    FileTextIcon as FileText,
-    FloppyDiskIcon as Save,
     FolderOpenIcon as FolderOpen,
-    HouseIcon as Home,
     ImageIcon as Image,
     LinkIcon as Link,
     ListBulletsIcon as List,
-    ListMagnifyingGlassIcon as Outline,
     ListNumbersIcon as ListOrdered,
-    MagnifyingGlassIcon as Search,
     MoonIcon as Moon,
-    PencilSimpleIcon as Pencil,
     PlusIcon as Plus,
     QuotesIcon as Quote,
     SidebarSimpleIcon as PanelRight,
@@ -46,7 +34,13 @@ import {
     TrashIcon as Trash2,
     SlidersIcon as Sliders,
     UploadSimpleIcon as Upload,
-    XIcon as Close,
+    FloppyDiskIcon as Save,
+    PlusIcon as FilePlus2,
+    FileTextIcon as FileText,
+    HouseIcon as Home,
+    ListMagnifyingGlassIcon as Outline,
+    ArrowsOutIcon as Maximize,
+    MagnifyingGlassIcon as Search,
 } from '@phosphor-icons/react';
 import type { Monaco } from '@monaco-editor/react';
 import type { editor as MonacoEditorTypes } from 'monaco-editor';
@@ -54,7 +48,17 @@ import DOMPurify from 'dompurify';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import 'highlight.js/styles/github-dark.css';
 import { AnimatePresence, motion } from 'framer-motion';
+
+// Hooks & Workers
 import { useMarkdownWorker } from './hooks/useMarkdownWorker';
+
+// Modular Decoupled Components
+import { CommandPalette, type Command } from './components/CommandPalette';
+import { TableModal } from './components/TableModal';
+import { ProjectNameEditor } from './components/ProjectNameEditor';
+import { OutlinePanel, type OutlineItem } from './components/OutlinePanel';
+import { HistoryPanel, type ReadmeVersion } from './components/HistoryPanel';
+import { Toolbar, type ToolbarItem } from './components/Toolbar';
 
 type EditorInstance = MonacoEditorTypes.IStandaloneCodeEditor;
 type MonacoInstance = Monaco;
@@ -62,14 +66,6 @@ type ToolbarActionParams = { prefix?: string; suffix?: string; type: string };
 type View = 'home' | 'editor';
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'));
-
-interface ReadmeVersion {
-    id: string;
-    timestamp: string;
-    name: string;
-    markdown: string;
-    size: number;
-}
 
 interface ReadmeProject {
     id: string;
@@ -80,34 +76,10 @@ interface ReadmeProject {
     versions?: ReadmeVersion[];
 }
 
-interface Command {
-    name: string;
-    action: () => void;
-    icon: ReactNode;
-}
-
-interface ToolbarItem {
-    id: string;
-    type: 'button' | 'divider' | 'dropdown';
-    label?: string;
-    icon?: ReactNode;
-    action?: () => void;
-    items?: { label: string; action: () => void }[];
-}
-
-interface OutlineItem {
-    id: string;
-    level: number;
-    text: string;
-    lineNumber: number;
-}
-
 const STORAGE_KEY = 'readme-editor-projects';
 const ACTIVE_PROJECT_KEY = 'readme-editor-active-project';
 const LEGACY_CONTENT_KEY = 'readme-editor-content';
 const THEME_KEY = 'readme-editor-theme';
-
-// Marked compiler is now running inside the background Web Worker
 
 const DEFAULT_MARKDOWN = '';
 
@@ -304,237 +276,13 @@ const Toast: FC<{ message: string; show: boolean }> = ({ message, show }) => (
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 16 }}
-                className="fixed bottom-5 right-5 z-[100] rounded-md border border-border bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm"
+                className="fixed bottom-5 right-5 z-[100] rounded-md border border-border bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm select-none"
             >
                 {message}
             </motion.div>
         )}
     </AnimatePresence>
 );
-
-const TableModal: FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    onInsert: ({ rows, cols }: { rows: number; cols: number }) => void;
-}> = ({ isOpen, onClose, onInsert }) => {
-    const [rows, setRows] = useState(2);
-    const [cols, setCols] = useState(3);
-    if (!isOpen) return null;
-
-    const updateNumber = (value: string, setter: (value: number) => void) => {
-        const next = Number.parseInt(value, 10);
-        setter(Number.isNaN(next) ? 1 : Math.max(1, next));
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm" onClick={event => event.stopPropagation()}>
-                <h3 className="text-lg font-semibold">Insert table</h3>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                    <label className="space-y-2 text-sm font-medium">
-                        Rows
-                        <input className="input" type="number" min={1} value={rows} onChange={event => updateNumber(event.target.value, setRows)} />
-                    </label>
-                    <label className="space-y-2 text-sm font-medium">
-                        Columns
-                        <input className="input" type="number" min={1} value={cols} onChange={event => updateNumber(event.target.value, setCols)} />
-                    </label>
-                </div>
-                <div className="mt-6 flex justify-end gap-2">
-                    <button onClick={onClose} className="btn btn-secondary">Cancel</button>
-                    <button onClick={() => { onInsert({ rows, cols }); onClose(); }} className="btn btn-primary">Insert</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-
-const CommandPalette: FC<{ isOpen: boolean; onClose: () => void; commands: Command[] }> = ({ isOpen, onClose, commands }) => {
-    const [search, setSearch] = useState('');
-    const filteredCommands = useMemo(
-        () => commands.filter(command => command.name.toLowerCase().includes(search.toLowerCase())),
-        [search, commands],
-    );
-
-    useEffect(() => {
-        if (isOpen) setSearch('');
-    }, [isOpen]);
-
-    return (
-        <AnimatePresence>
-            {isOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/80 p-4 pt-[12vh] backdrop-blur-sm" onClick={onClose}>
-                    <motion.div
-                        className="w-full max-w-2xl"
-                        onClick={event => event.stopPropagation()}
-                        initial={{ opacity: 0, scale: 0.98, y: 8 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.98, y: 8 }}
-                        transition={{ duration: 0.16, ease: 'easeOut' }}
-                    >
-                        <div className="rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm">
-                            <div className="relative border-b border-border">
-                                <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                <input
-                                    type="text"
-                                    value={search}
-                                    onChange={event => setSearch(event.target.value)}
-                                    placeholder="Search commands..."
-                                    className="h-12 w-full bg-transparent pl-10 pr-3 text-sm outline-none placeholder:text-muted-foreground"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="grid max-h-[52vh] grid-cols-2 gap-1 overflow-y-auto p-2 sm:grid-cols-3">
-                                {filteredCommands.map(command => (
-                                    <button
-                                        key={command.name}
-                                        onClick={() => { command.action(); onClose(); }}
-                                        className="flex items-center gap-3 rounded-md px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                                    >
-                                        <span className="text-muted-foreground">{command.icon}</span>
-                                        {command.name}
-                                    </button>
-                                ))}
-                                {filteredCommands.length === 0 && (
-                                    <div className="col-span-full px-3 py-8 text-center text-sm text-muted-foreground">No commands found.</div>
-                                )}
-                            </div>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
-        </AnimatePresence>
-    );
-};
-
-const DropdownMenu: FC<{ triggerIcon: ReactNode; label: string; children: ReactNode }> = ({ triggerIcon, label, children }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const buttonRef = useRef<HTMLButtonElement | null>(null);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const handleOutsideClick = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleOutsideClick);
-        return () => {
-            document.removeEventListener('mousedown', handleOutsideClick);
-        };
-    }, [isOpen]);
-
-    const handleToggle = () => {
-        if (!isOpen && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            setCoords({
-                top: rect.bottom + 8,
-                left: Math.min(rect.left, window.innerWidth - 200)
-            });
-        }
-        setIsOpen(prev => !prev);
-    };
-
-    return (
-        <div className="relative inline-block" ref={containerRef}>
-            <button
-                ref={buttonRef}
-                onClick={handleToggle}
-                title={label}
-                className={`icon-btn ${isOpen ? 'bg-accent text-accent-foreground' : ''}`}
-            >
-                {triggerIcon}
-            </button>
-            {createPortal(
-                <AnimatePresence>
-                    {isOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            style={{
-                                position: 'fixed',
-                                top: coords.top,
-                                left: coords.left,
-                            }}
-                            className="z-[100] min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            {children}
-                        </motion.div>
-                    )}
-                </AnimatePresence>,
-                document.body
-            )}
-        </div>
-    );
-};
-
-const ProjectNameEditor: FC<{
-    name: string;
-    onSave: (next: string) => void;
-}> = ({ name, onSave }) => {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(name);
-    const inputRef = useRef<HTMLInputElement | null>(null);
-
-    useEffect(() => {
-        if (editing) {
-            setDraft(name);
-            window.setTimeout(() => inputRef.current?.select(), 0);
-        }
-    }, [editing, name]);
-
-    const commit = () => {
-        const trimmed = draft.trim();
-        if (trimmed && trimmed !== name) onSave(trimmed);
-        setEditing(false);
-    };
-
-    const cancel = () => {
-        setDraft(name);
-        setEditing(false);
-    };
-
-    if (editing) {
-        return (
-            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                <input
-                    ref={inputRef}
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={e => {
-                        if (e.key === 'Enter') commit();
-                        if (e.key === 'Escape') cancel();
-                    }}
-                    className="h-8 rounded-md border border-border bg-muted/40 px-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 w-48 transition-all font-sans"
-                    aria-label="Project name"
-                />
-                <button onClick={commit} className="p-1 rounded hover:bg-muted text-accent" aria-label="Save name">
-                    <Check size={16} />
-                </button>
-                <button onClick={cancel} className="p-1 rounded hover:bg-muted text-muted-foreground" aria-label="Cancel">
-                    <Close size={16} />
-                </button>
-            </div>
-        );
-    }
-
-    return (
-        <button
-            onClick={() => setEditing(true)}
-            className="group flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted/50 transition-colors text-left"
-            aria-label="Edit project name"
-        >
-            <span className="text-base font-semibold tracking-tight">{name}</span>
-            <Pencil size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-        </button>
-    );
-};
 
 const App: FC = () => {
     const { compileMarkdown } = useMarkdownWorker();
@@ -551,6 +299,7 @@ const App: FC = () => {
     const [activeLine, setActiveLine] = useState(1);
     const [clock, setClock] = useState(() => Date.now());
     const [toast, setToast] = useState({ show: false, message: '' });
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(true);
     const [wordGoal, setWordGoal] = useState<number | null>(null);
     const [isGoalInputOpen, setIsGoalInputOpen] = useState(false);
@@ -575,7 +324,7 @@ const App: FC = () => {
     const stats = useMemo(() => {
         const lines = markdown.split('\n');
         const words = markdown.trim().split(/\s+/).filter(Boolean);
-        // Estimated reading time based on standard 200 WPM
+        // Estimated reading time based on standard 200 WPM index
         const readingTime = Math.ceil(words.length / 200);
         return { lines: lines.length, words: words.length, chars: markdown.length, readingTime };
     }, [markdown]);
@@ -794,16 +543,14 @@ const App: FC = () => {
             markdown: activeProject.markdown,
             size: new Blob([activeProject.markdown]).size
         };
-        
+
         updateActiveProject({
             markdown: version.markdown,
             versions: [currentSnapshot, ...pastVersions].slice(0, 15)
         });
-        
+
         showToast('Version restored (Pre-restore backup saved)');
     }, [activeProject, updateActiveProject, showToast]);
-
-
 
     const handleDuplicateProject = (project: ReadmeProject) => {
         const duplicate = createProject(`${project.name} copy`, project.markdown);
@@ -837,7 +584,7 @@ const App: FC = () => {
         reader.onload = eventData => {
             const content = String(eventData.target?.result || '');
             const project = createProject(file.name.replace(/\.md$/i, '') || inferProjectName(content), content);
-            
+
             // Initialize with an Initial Import version backup
             const initialVersion: ReadmeVersion = {
                 id: createId(),
@@ -883,7 +630,7 @@ const App: FC = () => {
                 triggerCharacters: ['/'],
                 provideCompletionItems: (model: any, position: any) => {
                     const lineContent = model.getLineContent(position.lineNumber);
-                    
+
                     // Only trigger slash commands if / is at the start of a line (with optional spaces)
                     const textBeforeSlash = lineContent.substring(0, position.column - 1);
                     if (textBeforeSlash.trim() !== '') {
@@ -1138,16 +885,17 @@ const App: FC = () => {
             <input type="file" ref={openFileInputRef} onChange={handleOpenFile} className="hidden" accept=".md,text/markdown" />
             <input type="file" ref={imageInputRef} onChange={event => handleImageUpload(event.target.files?.[0])} className="hidden" accept="image/*" />
             <Toast message={toast.message} show={toast.show} />
+            
             <TableModal isOpen={isTableModalOpen} onClose={() => setTableModalOpen(false)} onInsert={({ rows, cols }) => insertTableMarkdown(editorRef.current, { rows, cols })} />
             <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
 
             {view === 'home' && (
-                <div className="min-h-screen bg-background text-foreground flex flex-col relative">
+                <div className="min-h-screen bg-background text-foreground flex flex-col relative select-none">
                     {/* Theme Toggle in Top Right */}
                     <div className="absolute top-6 right-6 z-40">
-                        <button 
-                            onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} 
-                            className="icon-btn" 
+                        <button
+                            onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
+                            className="icon-btn cursor-pointer"
                             title="Toggle theme"
                         >
                             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
@@ -1158,7 +906,7 @@ const App: FC = () => {
                     <main className="mx-auto w-full max-w-3xl px-6 py-16 flex-1 flex flex-col">
                         {/* Title Block */}
                         <div className="mb-10 text-center sm:text-left">
-                            <h1 className="text-3xl font-extrabold tracking-tight">Markdown Editor</h1>
+                            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Markdown Editor</h1>
                             <p className="mt-2 text-base text-muted-foreground">
                                 Local projects, fast Markdown, clean preview.
                             </p>
@@ -1167,14 +915,14 @@ const App: FC = () => {
                             <div className="mt-6 flex flex-wrap items-center justify-center sm:justify-start gap-3">
                                 <button
                                     onClick={() => openFileInputRef.current?.click()}
-                                    className="btn btn-secondary h-9 px-4 gap-2 font-medium"
+                                    className="btn btn-secondary h-9 px-4 gap-2 font-medium cursor-pointer"
                                 >
                                     <Upload size={16} />
                                     Import markdown
                                 </button>
                                 <button
                                     onClick={handleNewProject}
-                                    className="btn btn-primary h-9 px-4 gap-2 font-medium"
+                                    className="btn btn-primary h-9 px-4 gap-2 font-medium cursor-pointer"
                                 >
                                     <Plus size={16} />
                                     New blank Markdown
@@ -1194,7 +942,7 @@ const App: FC = () => {
                                         value={projectSearch}
                                         onChange={event => setProjectSearch(event.target.value)}
                                         placeholder="Search projects..."
-                                        className="h-9 w-full rounded-lg border border-border bg-muted/40 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60 transition-all"
+                                        className="h-9 w-full rounded-lg border border-border bg-muted/40 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60 transition-all font-sans text-foreground"
                                     />
                                 </div>
                                 <div className="text-xs font-mono text-muted-foreground px-2.5 py-1 shrink-0 bg-muted/50 border border-border rounded-md self-start sm:self-auto">
@@ -1222,7 +970,7 @@ const App: FC = () => {
                                                 Create a blank project or import a Markdown file to keep it available in this browser.
                                             </p>
                                             <button
-                                                className="btn btn-primary mt-6 gap-2 font-medium"
+                                                className="btn btn-primary mt-6 gap-2 font-medium cursor-pointer"
                                                 onClick={handleNewProject}
                                             >
                                                 <Plus size={16} />
@@ -1287,14 +1035,14 @@ const App: FC = () => {
                                                                             setConfirmDeleteId(null);
                                                                             showToast('Project deleted');
                                                                         }}
-                                                                        className="text-xs font-semibold text-destructive hover:underline"
+                                                                        className="text-xs font-semibold text-destructive hover:underline cursor-pointer"
                                                                     >
                                                                         Delete
                                                                     </button>
                                                                     <span className="text-muted-foreground text-xs">/</span>
                                                                     <button
                                                                         onClick={() => setConfirmDeleteId(null)}
-                                                                        className="text-xs font-medium text-muted-foreground hover:underline"
+                                                                        className="text-xs font-medium text-muted-foreground hover:underline cursor-pointer"
                                                                     >
                                                                         Cancel
                                                                     </button>
@@ -1303,14 +1051,14 @@ const App: FC = () => {
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleDuplicateProject(project)}
-                                                                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors"
+                                                                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
                                                                         title="Duplicate project"
                                                                     >
                                                                         <Copy size={15} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => setConfirmDeleteId(project.id)}
-                                                                        className="p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+                                                                        className="p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors cursor-pointer"
                                                                         title="Delete project"
                                                                     >
                                                                         <Trash2 size={15} />
@@ -1335,12 +1083,12 @@ const App: FC = () => {
 
             {view === 'editor' && activeProject && (
                 <div className="flex h-screen flex-col overflow-hidden">
-                    <header className={`flex-shrink-0 border-b border-border bg-background/80 px-6 py-3 backdrop-blur-md ${isZenMode ? 'hidden' : 'block'}`}>
+                    <header className={`flex-shrink-0 border-b border-border bg-background/80 px-6 py-3 backdrop-blur-md select-none ${isZenMode ? 'hidden' : 'block'}`}>
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
                                 <button
                                     onClick={() => setView('home')}
-                                    className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm shrink-0"
+                                    className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm shrink-0 cursor-pointer"
                                     aria-label="Back to projects"
                                 >
                                     <ArrowLeft size={16} />
@@ -1353,226 +1101,74 @@ const App: FC = () => {
                                 />
                                 <button
                                     onClick={() => setIsToolbarVisible(prev => !prev)}
-                                    className={`icon-btn shrink-0 ${isToolbarVisible ? 'text-accent bg-accent/10 border border-accent/20' : 'text-muted-foreground'}`}
+                                    className={`icon-btn shrink-0 cursor-pointer ${isToolbarVisible ? 'text-accent bg-accent/10 border border-accent/20' : 'text-muted-foreground'}`}
                                     title={isToolbarVisible ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
                                 >
                                     <Sliders size={16} />
                                 </button>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setIsCommandPaletteOpen(true)} className="btn btn-secondary h-8 px-3 gap-2">
+                                <button onClick={() => setIsCommandPaletteOpen(true)} className="btn btn-secondary h-8 px-3 gap-2 cursor-pointer">
                                     <Search size={14} />
                                     <span className="hidden sm:inline">Search</span>
                                     <kbd className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground font-mono">Ctrl K</kbd>
                                 </button>
-                                <button onClick={handleCopy} className="icon-btn" title="Copy markdown"><Copy size={17} /></button>
-                                <button onClick={handleDownload} className="btn btn-primary h-8 px-3 gap-2 font-medium"><FileDown size={15} /> Download</button>
+                                <button onClick={handleCopy} className="icon-btn cursor-pointer" title="Copy markdown"><Copy size={17} /></button>
+                                <button onClick={handleDownload} className="btn btn-primary h-8 px-3 gap-2 font-medium cursor-pointer"><FileDown size={15} /> Download</button>
                             </div>
                         </div>
                     </header>
- 
+
                     <main className="min-h-0 flex-1 overflow-hidden">
                         <PanelGroup direction="horizontal">
                             <Panel defaultSize={50} minSize={isZenMode ? 100 : 24}>
                                 <div className="relative flex h-full flex-col bg-background">
-                                    <AnimatePresence>
-                                        {isToolbarVisible && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: -10, x: '-50%' }}
-                                                animate={{ opacity: 1, y: 0, x: '-50%' }}
-                                                exit={{ opacity: 0, y: -10, x: '-50%' }}
-                                                transition={{ duration: 0.15, ease: 'easeOut' }}
-                                                className="absolute top-3 left-1/2 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1.5 text-muted-foreground shadow-sm backdrop-blur max-w-[90%] overflow-x-auto whitespace-nowrap scrollbar-thin"
-                                            >
-                                                <button onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')} title="Toggle theme" className="icon-btn">{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}</button>
-                                                <button onClick={() => setIsZenMode(!isZenMode)} title={isZenMode ? 'Exit fullscreen' : 'Enter fullscreen'} className="icon-btn">{isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}</button>
-                                                <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
-                                                <button
-                                                    onClick={() => setIsOutlineOpen(o => {
-                                                        const next = !o;
-                                                        if (next) setIsHistoryOpen(false);
-                                                        return next;
-                                                    })}
-                                                    title="Markdown outline"
-                                                    className={`icon-btn ${isOutlineOpen ? 'bg-accent text-accent-foreground' : ''}`}
-                                                >
-                                                    <Outline size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setIsHistoryOpen(h => {
-                                                        const next = !h;
-                                                        if (next) setIsOutlineOpen(false);
-                                                        return next;
-                                                    })}
-                                                    title="Version history"
-                                                    className={`icon-btn ${isHistoryOpen ? 'bg-accent text-accent-foreground' : ''}`}
-                                                >
-                                                    <Clock3 size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setIsScrollSyncEnabled(prev => !prev)}
-                                                    title={isScrollSyncEnabled ? 'Disable Scroll Sync' : 'Enable Scroll Sync'}
-                                                    className={`icon-btn ${isScrollSyncEnabled ? 'text-accent bg-accent/10 border border-accent/20' : 'text-muted-foreground'}`}
-                                                >
-                                                    <Link size={18} />
-                                                </button>
-                                                <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
-                                                <div className="flex items-center gap-1">
-                                                    {toolbarItems.map(item => {
-                                                        if (item.type === 'divider') return <div key={item.id} className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />;
-                                                        if (item.type === 'dropdown') {
-                                                            return (
-                                                                <DropdownMenu key={item.id} triggerIcon={item.icon} label={item.label || ''}>
-                                                                    {item.items?.map(sub => (
-                                                                        <button key={sub.label} onClick={sub.action} className="dropdown-item">{sub.label}</button>
-                                                                    ))}
-                                                                </DropdownMenu>
-                                                            );
-                                                        }
-                                                        return <button key={item.id} onClick={item.action} title={item.label} className="icon-btn">{item.icon}</button>;
-                                                    })}
-                                                </div>
-                                                <div className="mx-1.5 h-4 w-[1px] bg-border shrink-0" />
-                                                <button onClick={() => openFileInputRef.current?.click()} className="icon-btn" title="Open file"><Upload size={18} /></button>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                    <AnimatePresence>
-                                        {isOutlineOpen && (
-                                            <motion.aside
-                                                className="absolute bottom-3 left-3 top-3 z-30 flex w-72 flex-col rounded-lg border border-border bg-card/95 text-card-foreground shadow-sm backdrop-blur"
-                                                initial={{ opacity: 0, x: -8 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: -8 }}
-                                                transition={{ duration: 0.16, ease: 'easeOut' }}
-                                            >
-                                                <div className="flex h-11 items-center justify-between border-b border-border px-3">
-                                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                                        <Outline size={16} className="text-muted-foreground" />
-                                                        Outline
-                                                    </div>
-                                                    <button onClick={() => setIsOutlineOpen(false)} className="icon-btn size-7" title="Close outline">
-                                                        <Close size={15} />
-                                                    </button>
-                                                </div>
-                                                {outline.length > 0 ? (
-                                                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                                                        {outline.map(item => (
-                                                            <button
-                                                                key={item.id}
-                                                                onClick={() => jumpToOutlineItem(item)}
-                                                                className={`block w-full truncate rounded-md py-1.5 pr-2 text-left text-sm hover:bg-accent hover:text-accent-foreground ${activeOutlineId === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
-                                                                style={{ paddingLeft: `${Math.min(item.level - 1, 4) * 12 + 8}px` }}
-                                                                title={item.text}
-                                                            >
-                                                                {item.text}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                                                        Add headings to build an outline.
-                                                    </div>
-                                                )}
-                                            </motion.aside>
-                                        )}
-                                        {isHistoryOpen && activeProject && (
-                                            <motion.aside
-                                                className="absolute bottom-3 left-3 top-3 z-30 flex w-72 flex-col rounded-lg border border-border bg-card/95 text-card-foreground shadow-sm backdrop-blur"
-                                                initial={{ opacity: 0, x: -8 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: -8 }}
-                                                transition={{ duration: 0.16, ease: 'easeOut' }}
-                                            >
-                                                <div className="flex h-11 items-center justify-between border-b border-border px-3">
-                                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                                        <Clock3 size={16} className="text-muted-foreground" />
-                                                        Version History
-                                                    </div>
-                                                    <button onClick={() => setIsHistoryOpen(false)} className="icon-btn size-7" title="Close history">
-                                                        <Close size={15} />
-                                                    </button>
-                                                </div>
+                                    {/* Modular formatting toolbar */}
+                                    <Toolbar
+                                        isVisible={isToolbarVisible}
+                                        theme={theme}
+                                        onToggleTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
+                                        isZenMode={isZenMode}
+                                        onToggleZenMode={() => setIsZenMode(!isZenMode)}
+                                        isOutlineOpen={isOutlineOpen}
+                                        onToggleOutline={() => setIsOutlineOpen(o => {
+                                            const next = !o;
+                                            if (next) setIsHistoryOpen(false);
+                                            return next;
+                                        })}
+                                        isHistoryOpen={isHistoryOpen}
+                                        onToggleHistory={() => setIsHistoryOpen(h => {
+                                            const next = !h;
+                                            if (next) setIsOutlineOpen(false);
+                                            return next;
+                                        })}
+                                        isScrollSyncEnabled={isScrollSyncEnabled}
+                                        onToggleScrollSync={() => setIsScrollSyncEnabled(prev => !prev)}
+                                        toolbarItems={toolbarItems}
+                                        onOpenFileClick={() => openFileInputRef.current?.click()}
+                                    />
 
-                                                {/* Manual Checkpoint Creator */}
-                                                <div className="p-3 border-b border-border bg-muted/30">
-                                                    <form
-                                                        onSubmit={e => {
-                                                            e.preventDefault();
-                                                            const form = e.currentTarget;
-                                                            const input = form.elements.namedItem('versionName') as HTMLInputElement;
-                                                            const name = input.value.trim();
-                                                            handleCreateCheckpoint(name || undefined);
-                                                            form.reset();
-                                                        }}
-                                                        className="flex gap-1.5"
-                                                    >
-                                                        <input
-                                                            type="text"
-                                                            name="versionName"
-                                                            placeholder="Snapshot name..."
-                                                            className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition-all font-sans"
-                                                        />
-                                                        <button
-                                                            type="submit"
-                                                            className="btn btn-primary text-xs px-2.5 h-8 font-semibold shrink-0"
-                                                        >
-                                                            Save
-                                                        </button>
-                                                    </form>
-                                                </div>
+                                    {/* Modular Document Outline panel */}
+                                    <OutlinePanel
+                                        isOpen={isOutlineOpen}
+                                        onClose={() => setIsOutlineOpen(false)}
+                                        outline={outline}
+                                        activeOutlineId={activeOutlineId}
+                                        onJump={jumpToOutlineItem}
+                                    />
 
-                                                {/* Checkpoints List */}
-                                                <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1.5">
-                                                    {(activeProject.versions && activeProject.versions.length > 0) ? (
-                                                        activeProject.versions.map(version => (
-                                                            <div
-                                                                key={version.id}
-                                                                className="group relative flex flex-col gap-1 rounded-md border border-border bg-card/50 p-2.5 hover:bg-accent/40 hover:border-accent/40 transition-all duration-150"
-                                                            >
-                                                                <div className="flex items-start justify-between gap-2 pr-6">
-                                                                    <span className="font-semibold text-xs text-foreground leading-tight truncate" title={version.name}>
-                                                                        {version.name}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
-                                                                    <span>{formatRelativeTime(version.timestamp, clock)}</span>
-                                                                    <span>•</span>
-                                                                    <span>{formatBytes(version.size)}</span>
-                                                                </div>
-                                                                
-                                                                {/* Restore Button */}
-                                                                <div className="mt-1.5 flex items-center justify-between">
-                                                                    <button
-                                                                        onClick={() => handleRestoreCheckpoint(version)}
-                                                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
-                                                                    >
-                                                                        Restore
-                                                                    </button>
-                                                                </div>
+                                    {/* Modular Version Checkpoint history panel */}
+                                    <HistoryPanel
+                                        isOpen={isHistoryOpen}
+                                        onClose={() => setIsHistoryOpen(false)}
+                                        versions={activeProject.versions || []}
+                                        onSaveCheckpoint={handleCreateCheckpoint}
+                                        onDeleteCheckpoint={handleDeleteCheckpoint}
+                                        onRestoreCheckpoint={handleRestoreCheckpoint}
+                                        formatRelativeTime={val => formatRelativeTime(val, clock)}
+                                        formatBytes={formatBytes}
+                                    />
 
-                                                                {/* Delete Button inside hover group */}
-                                                                <button
-                                                                    onClick={() => handleDeleteCheckpoint(version.id)}
-                                                                    className="absolute top-2 right-2 p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-opacity opacity-0 group-hover:opacity-100"
-                                                                    title="Delete version"
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="flex h-32 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
-                                                            No checkpoints saved yet.
-                                                            <p className="mt-1 text-[10px] text-muted-foreground/60 leading-relaxed max-w-[200px]">
-                                                                Snapshots are saved automatically every 10 minutes when changes are made.
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </motion.aside>
-                                        )}
-                                    </AnimatePresence>
                                     <div className={`min-h-0 flex-1 overflow-hidden transition-[padding] ${isOutlineOpen || isHistoryOpen ? 'pl-[19.5rem]' : 'pl-4'} ${isToolbarVisible ? 'pt-16' : 'pt-4'}`}>
                                         <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}>
                                             <MonacoEditor
@@ -1688,7 +1284,7 @@ const App: FC = () => {
                             {!isZenMode && (
                                 <Panel defaultSize={50} minSize={24}>
                                     <div className="flex h-full flex-col bg-card">
-                                        <div className="flex h-10 flex-shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-medium">
+                                        <div className="flex h-10 flex-shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-medium select-none">
                                             <PanelRight size={16} className="text-muted-foreground" /> Preview
                                         </div>
                                         <div
