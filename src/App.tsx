@@ -1001,7 +1001,7 @@ const App: FC = () => {
         { id: 'ol', type: 'button', label: 'Ordered List', icon: <ListOrdered size={18} />, action: toolbarActions.ol },
         { id: 'quote', type: 'button', label: 'Blockquote', icon: <Quote size={18} />, action: toolbarActions.quote },
         { id: 'code', type: 'button', label: 'Code Block', icon: <Code2 size={18} />, action: toolbarActions.code },
-        { id: 'image', type: 'button', label: 'Image', icon: <Image size={18} />, action: toolbarActions.image },
+        { id: 'image', type: 'button', label: 'Upload Image/Video', icon: <Image size={18} />, action: toolbarActions.image },
         { id: 'table', type: 'button', label: 'Table', icon: <Table size={18} />, action: toolbarActions.table },
     ];
 
