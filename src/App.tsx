@@ -638,6 +638,12 @@ const App: FC = () => {
             return;
         }
 
+        // Enforce 100MB file size limit for videos
+        if (isVideo && file.size > 100 * 1024 * 1024) {
+            showToast('Video exceeds 100MB limit');
+            return;
+        }
+
         const editor = editorRef.current;
         if (!editor || !monacoRef.current) return;
 
